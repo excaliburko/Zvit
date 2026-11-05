@@ -1,0 +1,22 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {previousDate,costTotal,travelCalc} from './dist/calc.mjs';
+import {createServer} from './server.mjs';
+test('Hosting serves health, app and assets without exposing project files', async t=>{
+  const server=createServer();
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const base=`http://127.0.0.1:${server.address().port}`;
+  assert.equal(await (await fetch(base+'/health')).text(),'ok');
+  assert.match(await (await fetch(base+'/')).text(),/<html/);
+  const module=await fetch(base+'/calc.mjs');
+  assert.equal(module.status,200);
+  assert.match(module.headers.get('content-type'),/javascript/);
+  assert.equal((await fetch(base+'/package.json')).status,404);
+  assert.equal((await fetch(base+'/%ZZ')).status,400);
+  assert.equal((await fetch(base+'/health',{method:'POST'})).status,405);
+});
+test('Order date crosses month/year and leap day',()=>{assert.equal(previousDate('2026-01-01'),'2025-12-31');assert.equal(previousDate('2024-03-01'),'2024-02-29');assert.equal(previousDate('2026-03-01'),'2026-02-28')});
+test('Budget reproduces supplied PDF total without floating-point drift',()=>assert.equal(costTotal([279,139,269,273.16,1.5].map(price=>({qty:1,price}))),961.66));
+test('Manual mileage correction reconciles fuel and mileage',()=>{let t={liters:40,rate:8,startFuel:15,refill:30,odometer:1000,rows:[{km:151},{km:200},{km:0}]};let r=travelCalc(t);assert.equal(r.error,'');assert.equal(r.total,500);assert.equal(r.rows[2].km,149);assert.equal(r.endFuel,5);assert.equal(r.endOdo,1500);assert.equal(r.rows.reduce((a,x)=>a+x.fuel,0),40)});
+test('Invalid rate, overspent fuel and excessive routes cannot balance',()=>{assert.ok(travelCalc({liters:20,rate:0}).error);assert.ok(travelCalc({liters:20,rate:10,startFuel:0,refill:0,rows:[{km:0}]}).error);assert.ok(travelCalc({liters:20,rate:10,startFuel:20,rows:[{km:300},{km:0}]}).error)});
+test('Excel seat September 2026 round-trip',()=>{const r=travelCalc({liters:69.68,rate:10,startFuel:15,endTarget:20,odometer:11978.9,rows:[{km:0}]});assert.equal(r.refill,74.68);assert.equal(r.endFuel,20);assert.equal(r.total,696.8);assert.equal(r.endOdo,12675.7);assert.equal(r.normFuel,69.68);assert.equal(r.actualRate,10)});
+test('Excel seat July 2026 mileage correction preserves actual fuel',()=>{const r=travelCalc({liters:45.49,rate:10,startFuel:5,endTarget:5,odometer:10793.7,adjustmentKm:35,rows:[{km:0}]});assert.equal(r.refill,45.49);assert.equal(r.total,489.9);assert.equal(r.endOdo,11283.6);assert.equal(r.normFuel,48.99);assert.equal(r.actualRate,9.2856);assert.equal(r.fuelDifference,-3.5);assert.equal(r.rows[0].fuel,45.49)});

@@ -1,0 +1,9 @@
+src/
+qa/
+node_modules/
+*.tar.gz
+*.tar
+.openai/*.log
+.env
+.env.*
+.railway/

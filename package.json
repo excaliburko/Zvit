@@ -1,0 +1,1 @@
+{"name":"zvit-studio","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"start":"node server.mjs","test":"node --test tests.mjs","dev":"node server.mjs"}}
