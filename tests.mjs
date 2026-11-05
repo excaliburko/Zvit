@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {previousDate,costTotal,travelCalc} from './dist/calc.mjs';
+import test from 'node:test';import assert from 'node:assert/strict';import {previousDate,eventDates,validDate,costTotal,travelCalc} from './dist/calc.mjs';
 import {createServer} from './server.mjs';
 import {createAuthStore,hashPassword} from './auth.mjs';
 import {mkdtempSync} from 'node:fs';
@@ -99,6 +99,19 @@ test('Login rate limit rejects repeated guesses and missing setup fails closed',
  assert.throws(()=>createAuthStore(':memory:'),/Configure/);
 });
 test('Order date crosses month/year and leap day',()=>{assert.equal(previousDate('2026-01-01'),'2025-12-31');assert.equal(previousDate('2024-03-01'),'2024-02-29');assert.equal(previousDate('2026-03-01'),'2026-02-28')});
+test('Order date follows receipt date independently of the round table',()=>{
+ const event={date:'2026-11-20',receiptDate:'2026-11-10'};
+ assert.deepEqual(eventDates(event),{eventDate:'2026-11-20',receiptDate:'2026-11-10',orderDate:'2026-11-09'});
+ event.date='2026-12-01';assert.equal(eventDates(event).orderDate,'2026-11-09');
+ event.receiptDate='2027-01-01';assert.equal(eventDates(event).orderDate,'2026-12-31');assert.equal(event.date,'2026-12-01');
+});
+test('Old reports need a receipt date and impossible dates are rejected',()=>{
+ assert.equal(eventDates({date:'2026-11-20'}).orderDate,'');
+ assert.equal(eventDates({date:'2026-11-20',receiptDate:''}).orderDate,'');
+ assert.equal(eventDates({date:'2026-11-20',receiptDate:'2026-02-30'}).orderDate,'');
+ assert.equal(validDate('2026-02-29'),false);assert.equal(validDate('2024-02-29'),true);
+ assert.equal(previousDate('2026-13-01'),'');
+});
 test('Budget reproduces supplied PDF total without floating-point drift',()=>assert.equal(costTotal([279,139,269,273.16,1.5].map(price=>({qty:1,price}))),961.66));
 test('Manual mileage correction reconciles fuel and mileage',()=>{let t={liters:40,rate:8,startFuel:15,refill:30,odometer:1000,rows:[{km:151},{km:200},{km:0}]};let r=travelCalc(t);assert.equal(r.error,'');assert.equal(r.total,500);assert.equal(r.rows[2].km,149);assert.equal(r.endFuel,5);assert.equal(r.endOdo,1500);assert.equal(r.rows.reduce((a,x)=>a+x.fuel,0),40)});
 test('Invalid rate, overspent fuel and excessive routes cannot balance',()=>{assert.ok(travelCalc({liters:20,rate:0}).error);assert.ok(travelCalc({liters:20,rate:10,startFuel:0,refill:0,rows:[{km:0}]}).error);assert.ok(travelCalc({liters:20,rate:10,startFuel:20,rows:[{km:300},{km:0}]}).error)});
