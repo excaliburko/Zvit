@@ -1,5 +1,29 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {previousDate,costTotal,travelCalc} from './dist/calc.mjs';
 import {createServer} from './server.mjs';
+import {migrateDirectories,validDirectory,applyContact} from './dist/contacts.mjs';
+test('Old data gets empty directories without losing drafts or archives',()=>{
+  const state={event:{venue:'Клініка'},travel:{driver:'Водій'},archive:[{id:'old'}]};
+  assert.equal(migrateDirectories(state),state);
+  assert.deepEqual(state.clinics,[]);assert.deepEqual(state.representatives,[]);
+  assert.equal(state.event.venue,'Клініка');assert.equal(state.archive[0].id,'old');
+});
+test('Directory selections copy fields while reports retain their own values',()=>{
+  const state=migrateDirectories({event:{date:'2026-11-06',items:[{name:'Чай'}]},travel:{liters:40},archive:[],clinics:[{id:'c1',name:'Леодерм',city:'Львів',address:'вул. Тестова',contact:'',phone:''}],representatives:[{id:'r1',name:'Уляна Кузьмінська',person:'Кузьмінській Уляні',phone:''}]});
+  assert.ok(applyContact(state,'clinics','c1'));assert.ok(applyContact(state,'representatives','r1'));
+  assert.equal(state.event.venue,'Леодерм');assert.equal(state.event.city,'Львів');assert.equal(state.event.person,'Кузьмінській Уляні');
+  state.clinics[0].name='Нова назва';assert.equal(state.event.venue,'Леодерм');
+  assert.equal(state.event.date,'2026-11-06');assert.equal(state.event.items[0].name,'Чай');
+  assert.ok(applyContact(state,'representatives','r1','travel'));assert.equal(state.travel.driver,'Уляна Кузьмінська');assert.equal(state.travel.liters,40);
+  assert.equal(applyContact(state,'clinics','missing'),false);
+  const copy=JSON.parse(JSON.stringify(state));assert.ok(validDirectory(copy.clinics,'clinics'));assert.ok(validDirectory(copy.representatives,'representatives'));
+});
+test('Directory backups reject invalid records and duplicate identifiers',()=>{
+  assert.ok(validDirectory(undefined,'clinics'));
+  const row={id:'c1',name:'Клініка',city:'Київ',address:'',contact:'',phone:''};
+  assert.equal(validDirectory([row,row],'clinics'),false);
+  assert.equal(validDirectory([{...row,name:{}}],'clinics'),false);
+  assert.equal(validDirectory([{id:'r1',name:'Ім’я',person:'',phone:''}],'representatives'),false);
+});
 test('Hosting serves health, app and assets without exposing project files', async t=>{
   const server=createServer();
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
