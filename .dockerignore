@@ -5,3 +5,5 @@
 !auth.mjs
 !dist/
 !dist/**
+
+!fuel-seed.json

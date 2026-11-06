@@ -19,6 +19,7 @@ export function createAuthStore(filename,bootstrap={}){
   if(!bootstrap.passwordHash||!bootstrap.username){db.close();throw Error('Configure BOOTSTRAP_ADMIN_HASH and BOOTSTRAP_ADMIN_USERNAME before first start.');}
   db.prepare('INSERT INTO users(id,username,name,password_hash,role) VALUES(?,?,?,?,?)').run(randomUUID(),bootstrap.username,'Адміністратор',bootstrap.passwordHash,'admin');
  }
+ db.exec('CREATE TABLE IF NOT EXISTS fuel_records(user_id TEXT NOT NULL REFERENCES users(id),vehicle TEXT NOT NULL,period_start TEXT NOT NULL,period_end TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(user_id,vehicle,period_start,period_end));');
  const publicUser=row=>row?{id:row.id,username:row.username,name:row.name,role:row.role,active:!!row.active}:null;
  return {
   db,

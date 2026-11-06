@@ -1,3 +1,4 @@
+import {validFuel} from './dist/fuel.mjs';
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -23,6 +24,7 @@ export function createServer({auth}={}){
    if(pathname.startsWith('/api/')){
     if(!auth)return json(503,{error:'Вхід ще не налаштовано. Зверніться до адміністратора.'});
     if(pathname==='/api/session'&&req.method==='GET')return user?json(200,{user}):json(401,{error:'Увійдіть до застосунку.'});
+    if(pathname==='/api/fuel'&&req.method==='GET')return user?json(200,{records:auth.db.prepare('SELECT payload FROM fuel_records WHERE user_id=? ORDER BY period_start').all(user.id).map(row=>JSON.parse(row.payload))}):json(401,{error:'Увійдіть до застосунку.'});
     if(pathname==='/api/users'&&req.method==='GET')return !user?json(401,{error:'Увійдіть до застосунку.'}):user.role==='admin'?json(200,{users:auth.list()}):json(403,{error:'Потрібен доступ адміністратора.'});
     if(!['POST','PATCH'].includes(req.method))return json(405,{error:'Метод не підтримується.'});
     const origin=req.headers.origin;
@@ -47,6 +49,8 @@ export function createServer({auth}={}){
     }
     if(pathname==='/api/logout'&&req.method==='POST'){auth.revoke(cookie);setCookie('');return json(200,{ok:true});}
     if(!user)return json(401,{error:'Увійдіть до застосунку.'});
+    if(pathname==='/api/fuel'&&req.method==='POST'){if(!validFuel(body))return json(400,{error:'Перевірте дані пального та період.'});const vehicle=body.car.trim().toUpperCase()+'|'+body.plate.trim().toUpperCase();auth.db.prepare('INSERT INTO fuel_records VALUES(?,?,?,?,?) ON CONFLICT(user_id,vehicle,period_start,period_end) DO UPDATE SET payload=excluded.payload').run(user.id,vehicle,body.from,body.to,JSON.stringify(body));return json(200,{ok:true});}
+    if(pathname==='/api/fuel/import'&&req.method==='POST'){if(user.role!=='admin')return json(403,{error:'Імпорт Excel доступний адміністратору.'});const rows=JSON.parse(await fs.readFile(new URL('./fuel-seed.json',import.meta.url),'utf8'));const insert=auth.db.prepare('INSERT OR IGNORE INTO fuel_records VALUES(?,?,?,?,?)');auth.db.exec('BEGIN');try{for(const row of rows)insert.run(user.id,row.car+'|',row.from,row.to,JSON.stringify(row));auth.db.exec('COMMIT');}catch(error){auth.db.exec('ROLLBACK');throw error;}return json(200,{ok:true});}
     if(pathname==='/api/password'&&req.method==='POST'){
      if(!passwordOK(body.password))return json(400,{error:'Новий пароль має містити від 12 до 256 символів.'});
      const current=auth.find(user.username);
