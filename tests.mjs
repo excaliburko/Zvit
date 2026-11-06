@@ -120,5 +120,24 @@ test('Excel seat July 2026 mileage correction preserves actual fuel',()=>{const 
 import {fuelMetrics,fraction,validFuel} from './dist/fuel.mjs';
 import {travelTemplate} from './dist/travel-template.mjs';
 import {readFileSync} from 'node:fs';
+import {monthBounds,filledTravel,previousMonthRecord} from './dist/fuel.mjs';
+test('Monthly flow derives spent fuel and mileage from filled fuel and arrival target',()=>{
+ assert.deepEqual(monthBounds('2024-02'),{from:'2024-02-01',to:'2024-02-29'});assert.equal(monthBounds('2026-13'),null);
+ const t=filledTravel({liters:0,refill:76.99,startFuel:20,endTarget:40,rate:10,odometer:12676,adjustmentKm:0,rows:[{km:0}]});
+ assert.equal(t.liters,56.99);assert.equal(fuelMetrics(t).total,569.9);assert.equal(fuelMetrics(t).endOdo,13245.9);assert.equal(fuelMetrics(t).refill,76.99);
+ const history=[{car:'SEAT',plate:'',from:'2026-09-01',to:'2026-09-30'},{car:'VW',plate:'',from:'2026-10-01',to:'2026-10-31'}];
+ assert.equal(previousMonthRecord(history,{car:'SEAT',plate:'',from:'2026-10-01'}).from,'2026-09-01');
+ assert.equal(previousMonthRecord(history,{car:'SEAT',plate:'',from:'2026-11-01'}),null);
+});
 test('Real mileage is analytical only and fractions round without altering balances',()=>{const t={liters:57,rate:10,startFuel:20,endTarget:40,odometer:12676,adjustmentKm:0,realKm:600,car:'SEAT',plate:'',from:'2026-10-01',to:'2026-10-31',rows:[{km:0,date:'2026-10-01',route:'Маршрут'}]};const r=fuelMetrics(t);assert.equal(r.total,570);assert.equal(r.realDifference,30);assert.equal(r.realRate,9.5);assert.equal(r.deviation,0);assert.equal(fraction(9.83,56.99),'10/57');assert.ok(validFuel(t));assert.equal(fuelMetrics({...t,realKm:''}).realKm,null);assert.equal(travelTemplate(t,r),travelTemplate({...t,realKm:900},r));});
-test('All 72 historical source periods have balanced fuel and mileage',()=>{const rows=JSON.parse(readFileSync('fuel-seed.json','utf8'));assert.equal(rows.length,72);for(const row of rows){assert.ok(validFuel(row),row.from+' '+row.car);assert.ok(Math.abs(fuelMetrics(row).refill-row.issuedSource)<0.011,row.from+' fuel');}});
+test('All 73 historical source periods have balanced fuel and mileage',()=>{const rows=JSON.parse(readFileSync('fuel-seed.json','utf8'));assert.equal(rows.length,73);for(const row of rows){assert.ok(validFuel(row),row.from+' '+row.car);assert.ok(Math.abs(fuelMetrics(row).refill-row.issuedSource)<0.011,row.from+' fuel');}});
+test('Monthly journal isolates users, updates a month once and rejects partial periods',async t=>{
+ const auth=createAuthStore(':memory:',{username:'admin',passwordHash:testHash}),server=createServer({auth});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(()=>{auth.close();resolve()})));
+ const admin=auth.find('admin'),other=await auth.add({username:'monthly.rep',name:'Представник',password:testPassword}),a=auth.issue(admin.id),b=auth.issue(other.id),base=`http://127.0.0.1:${server.address().port}`;
+ const row=filledTravel({car:'SEAT',plate:'',driver:'',from:'2026-11-01',to:'2026-11-30',refill:77,startFuel:20,endTarget:40,rate:10,odometer:12676,adjustmentKm:0,realKm:'',rows:[{date:'2026-11-01',km:0,route:''}]});
+ const post=data=>fetch(base+'/api/fuel',{method:'POST',headers:{Cookie:'zvit_session='+a,'Content-Type':'application/json'},body:JSON.stringify(data)});
+ assert.equal((await post(row)).status,200);assert.equal((await post({...row,realKm:600})).status,200);
+ assert.equal((await (await fetch(base+'/api/fuel',{headers:{Cookie:'zvit_session='+a}})).json()).records.length,1);
+ assert.equal((await (await fetch(base+'/api/fuel',{headers:{Cookie:'zvit_session='+b}})).json()).records.length,0);
+ assert.equal((await post({...row,from:'2026-11-06'})).status,400);
+});
