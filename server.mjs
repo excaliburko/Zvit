@@ -12,6 +12,9 @@ const USER_SEEDS={'uliana.kuzminsky@gmail.com':'fuel-seed-uliana.json'};
 async function insertSeed(auth,userId,file){const rows=JSON.parse(await fs.readFile(new URL('./'+file,import.meta.url),'utf8'));const insert=auth.db.prepare('INSERT OR IGNORE INTO fuel_records VALUES(?,?,?,?,?)');let added=0;auth.db.exec('BEGIN');try{for(const row of rows)added+=insert.run(userId,row.car+'|',row.from,row.to,JSON.stringify(row)).changes;auth.db.exec('COMMIT');}catch(error){auth.db.exec('ROLLBACK');throw error;}return added;}
 export async function seedUserFuel(auth,username){const file=USER_SEEDS[String(username||'').toLowerCase()];if(!file)return false;const u=auth.find(username);if(!u||auth.db.prepare('SELECT 1 FROM fuel_records WHERE user_id=? LIMIT 1').get(u.id))return false;const added=await insertSeed(auth,u.id,file);console.log(`Seeded ${added} fuel months for ${u.username}`);return true;}
 const DEFAULT_SEED=Object.values(USER_SEEDS)[0];
+// Профіль, довідники й налаштування користувача з його резервної копії. Застосовується один раз: додає відсутнє, наявне на сервері не затирає.
+const STATE_SEEDS={'uliana.kuzminsky@gmail.com':'state-seed-uliana.json'};
+export async function seedUserState(auth,username){const file=STATE_SEEDS[String(username||'').toLowerCase()];if(!file)return false;const u=auth.find(username);if(!u)return false;auth.db.exec('CREATE TABLE IF NOT EXISTS seeds_applied(user_id TEXT NOT NULL,name TEXT NOT NULL,PRIMARY KEY(user_id,name))');if(auth.db.prepare('SELECT 1 FROM seeds_applied WHERE user_id=? AND name=?').get(u.id,file))return false;const seed=JSON.parse(await fs.readFile(new URL('./'+file,import.meta.url),'utf8'));const row=auth.db.prepare('SELECT payload FROM user_state WHERE user_id=?').get(u.id);let st=row?JSON.parse(row.payload):null;if(!st)st=seed;else{st.profile={...seed.profile,...Object.fromEntries(Object.entries(st.profile||{}).filter(([,v])=>v!==''&&v!=null))};for(const k of ['clinics','representatives']){const have=new Set((st[k]||[]).map(x=>x?.id));st[k]=[...(st[k]||[]),...(seed[k]||[]).filter(x=>!have.has(x.id))]}st.products=[...new Set([...(st.products||[]),...(seed.products||[])])];if(!st.preset||!st.preset.person&&!st.preset.representativeId)st.preset=seed.preset;for(const k of ['car','plate','driver','rate','garage','license','fuelBrand','fuelCode','workMode'])if(seed.travel?.[k]!=null&&(st.travel?.[k]==null||st.travel[k]===''))st.travel[k]=seed.travel[k];const ha=new Set((st.archive||[]).map(x=>x?.id));st.archive=[...(st.archive||[]),...(seed.archive||[]).filter(x=>!ha.has(x.id))]}auth.db.prepare('INSERT INTO user_state(user_id,payload,updated) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload,updated=excluded.updated').run(u.id,JSON.stringify(st),Date.now());auth.db.prepare('INSERT OR IGNORE INTO seeds_applied VALUES(?,?)').run(u.id,file);console.log(`Seeded app data for ${username}`);return true}
 export function createServer({auth}={}){
  const attempts=new Map();let verifications=0;
  return http.createServer(async(req,res)=>{
@@ -31,7 +34,7 @@ export function createServer({auth}={}){
     if(pathname==='/api/session'&&req.method==='GET')return user?json(200,{user}):json(401,{error:'Увійдіть до застосунку.'});
     if(pathname==='/api/fuel'&&req.method==='GET'&&user)await seedUserFuel(auth,user.username);
     if(pathname==='/api/fuel'&&req.method==='GET')return user?json(200,{records:auth.db.prepare('SELECT payload FROM fuel_records WHERE user_id=? ORDER BY period_start').all(user.id).map(row=>JSON.parse(row.payload))}):json(401,{error:'Увійдіть до застосунку.'});
-    if(pathname==='/api/state'&&req.method==='GET'){if(!user)return json(401,{error:'Увійдіть до застосунку.'});const row=auth.db.prepare('SELECT payload,updated FROM user_state WHERE user_id=?').get(user.id);return json(200,{state:row?JSON.parse(row.payload):null,updated:row?.updated||0})}
+    if(pathname==='/api/state'&&req.method==='GET'){if(!user)return json(401,{error:'Увійдіть до застосунку.'});await seedUserState(auth,user.username);const row=auth.db.prepare('SELECT payload,updated FROM user_state WHERE user_id=?').get(user.id);return json(200,{state:row?JSON.parse(row.payload):null,updated:row?.updated||0})}
     if(pathname==='/api/users'&&req.method==='GET')return !user?json(401,{error:'Увійдіть до застосунку.'}):user.role==='admin'?json(200,{users:auth.list()}):json(403,{error:'Потрібен доступ адміністратора.'});
     if(!['POST','PATCH'].includes(req.method))return json(405,{error:'Метод не підтримується.'});
     const origin=req.headers.origin;
@@ -69,7 +72,7 @@ export function createServer({auth}={}){
      if(user.role!=='admin')return json(403,{error:'Потрібен доступ адміністратора.'});
      if(typeof body.username!=='string'||!/^[-a-zA-Z0-9_.@]{3,80}$/.test(body.username)||typeof body.name!=='string'||!body.name.trim()||body.name.length>180||!passwordOK(body.password))return json(400,{error:'Перевірте ПІБ, логін (3–80 латинських символів) і пароль (від 12 символів).'});
      if(auth.find(body.username))return json(409,{error:'Такий логін уже існує.'});
-     const created=await auth.add({...body,name:body.name.trim()});await seedUserFuel(auth,created.username);return json(201,{user:created});
+     const created=await auth.add({...body,name:body.name.trim()});await seedUserFuel(auth,created.username);await seedUserState(auth,created.username);return json(201,{user:created});
     }
     const account=pathname.match(/^\/api\/users\/([a-f0-9-]{36})$/);
     if(account&&req.method==='PATCH'){
@@ -103,6 +106,7 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
  if(process.getuid?.()===0){await fs.mkdir(dataDir,{recursive:true});await fs.chown(dataDir,1000,1000);process.setgid(1000);process.setuid(1000);}
  const auth=createAuthStore(path.join(dataDir,'auth.sqlite'),{username:process.env.BOOTSTRAP_ADMIN_USERNAME,passwordHash:process.env.BOOTSTRAP_ADMIN_HASH});
  for(const username of Object.keys(USER_SEEDS))await seedUserFuel(auth,username);
+ for(const username of Object.keys(STATE_SEEDS))await seedUserState(auth,username);
  const server=createServer({auth}),port=Number(process.env.PORT||4173);
  server.listen(port,'0.0.0.0',()=>console.log(`Listening on port ${port}`));
  for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>server.close(()=>{auth.close();process.exit(0);}));
