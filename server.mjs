@@ -7,6 +7,9 @@ import {createAuthStore,verifyPassword} from './auth.mjs';
 const root=fileURLToPath(new URL('./dist/',import.meta.url));
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json'};
 const publicPaths=new Set(['/login','/login.html','/login.css','/login.js','/icon.svg','/icon-192.png','/icon-512.png','/icon-maskable-192.png','/icon-maskable-512.png','/apple-touch-icon.png','/manifest.webmanifest','/sw.js']);
+// Per-user starting history: inserted once, only while the user has no fuel months yet.
+const USER_SEEDS={'uliana.kuzminsky@gmail.com':'fuel-seed-uliana.json'};
+export async function seedUserFuel(auth,username){const file=USER_SEEDS[String(username||'').toLowerCase()];if(!file)return false;const u=auth.find(username);if(!u||auth.db.prepare('SELECT 1 FROM fuel_records WHERE user_id=? LIMIT 1').get(u.id))return false;const rows=JSON.parse(await fs.readFile(new URL('./'+file,import.meta.url),'utf8'));const insert=auth.db.prepare('INSERT OR IGNORE INTO fuel_records VALUES(?,?,?,?,?)');auth.db.exec('BEGIN');try{for(const row of rows)insert.run(u.id,row.car+'|',row.from,row.to,JSON.stringify(row));auth.db.exec('COMMIT');}catch(error){auth.db.exec('ROLLBACK');throw error;}console.log(`Seeded ${rows.length} fuel months for ${u.username}`);return true;}
 export function createServer({auth}={}){
  const attempts=new Map();let verifications=0;
  return http.createServer(async(req,res)=>{
@@ -61,7 +64,7 @@ export function createServer({auth}={}){
      if(user.role!=='admin')return json(403,{error:'Потрібен доступ адміністратора.'});
      if(typeof body.username!=='string'||!/^[-a-zA-Z0-9_.@]{3,80}$/.test(body.username)||typeof body.name!=='string'||!body.name.trim()||body.name.length>180||!passwordOK(body.password))return json(400,{error:'Перевірте ПІБ, логін (3–80 латинських символів) і пароль (від 12 символів).'});
      if(auth.find(body.username))return json(409,{error:'Такий логін уже існує.'});
-     return json(201,{user:await auth.add({...body,name:body.name.trim()})});
+     const created=await auth.add({...body,name:body.name.trim()});await seedUserFuel(auth,created.username);return json(201,{user:created});
     }
     const account=pathname.match(/^\/api\/users\/([a-f0-9-]{36})$/);
     if(account&&req.method==='PATCH'){
@@ -93,6 +96,7 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
  // Railway mounts volumes as root. Drop privileges before opening the database.
  if(process.getuid?.()===0){await fs.mkdir(dataDir,{recursive:true});await fs.chown(dataDir,1000,1000);process.setgid(1000);process.setuid(1000);}
  const auth=createAuthStore(path.join(dataDir,'auth.sqlite'),{username:process.env.BOOTSTRAP_ADMIN_USERNAME,passwordHash:process.env.BOOTSTRAP_ADMIN_HASH});
+ for(const username of Object.keys(USER_SEEDS))await seedUserFuel(auth,username);
  const server=createServer({auth}),port=Number(process.env.PORT||4173);
  server.listen(port,'0.0.0.0',()=>console.log(`Listening on port ${port}`));
  for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>server.close(()=>{auth.close();process.exit(0);}));
