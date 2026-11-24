@@ -250,7 +250,7 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 .skel{background:var(--field,#f2f2f4);border-radius:24px;position:relative;overflow:hidden}
 .skel::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--bg) 70%,transparent),transparent);transform:translateX(-100%);animation:skel 1.2s ease-in-out infinite}
 @keyframes skel{to{transform:translateX(100%)}}
-.skel-hero{height:200px;margin:0 16px 24px}.skel-title{height:22px;width:110px;margin:8px 16px 16px;border-radius:8px}.skel-row{height:56px;margin:0 16px 10px;border-radius:16px}
+.skel-hero{height:200px;margin:8px 0 24px;border-radius:28px}.skel-title{height:22px;width:110px;margin:8px 4px 16px;border-radius:8px}.skel-row{height:56px;margin:0 0 10px;border-radius:16px}
 @media (prefers-reduced-motion:reduce){#content.enter>*,.skel::after{animation:none}}
 
 .fuel-hero{isolation:isolate;position:relative}
@@ -258,3 +258,6 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 .fade-out{opacity:0!important;transition:opacity .15s ease!important}
 .fade-in{animation:fade-in .26s ease-out both!important}
 @keyframes fade-in{from{opacity:0}to{opacity:1}}
+
+#boot-skel{padding-top:44px}#boot-skel.gone{opacity:0;transition:opacity .3s ease}
+.skel-line{height:12px;width:90px;margin:0 4px 10px;border-radius:6px}.skel-h1{height:34px;width:62%;margin:0 4px 18px;border-radius:10px}

@@ -209,6 +209,7 @@ function render(){
  const v=views[view](),pushed=!!parentOf[view];
  document.body.dataset.view=view;document.body.classList.toggle('pushed',pushed);
  $('#appbar').innerHTML=pushed?`${v.left||`<button class="round ghost" data-action="back" aria-label="Назад">${icon('left')}</button>`}<b>${v.title}</b><span class="appbar-right">${v.right||''}</span>`:'';
+ const sk=$('#content #boot-skel');if(sk){const r=sk.getBoundingClientRect();sk.style.cssText=`position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;bottom:0;z-index:25;pointer-events:none;background:var(--bg)`;document.body.append(sk);render.last=view+':'+fuelLoaded;requestAnimationFrame(()=>requestAnimationFrame(()=>sk.classList.add('gone')));setTimeout(()=>sk.remove(),450)}
  $('#content').innerHTML=v.body;
  {const key=view+':'+fuelLoaded,c=$('#content');if(key!==render.last){render.last=key;if(!inVT&&!matchMedia('(prefers-reduced-motion: reduce)').matches){c.classList.remove('enter');void c.offsetWidth;c.classList.add('enter');clearTimeout(render.t);render.t=setTimeout(()=>c.classList.remove('enter'),700)}}}
  $('#actionbar').innerHTML=v.bar||'';document.body.classList.toggle('has-bar',!!v.bar);
