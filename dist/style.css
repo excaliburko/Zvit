@@ -202,3 +202,18 @@ input,select{max-width:100%}input[type=date],input[type=time]{min-width:0;width:
 .create-new{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:56px;border-radius:28px;background:var(--hero);color:#fff;font-size:17px;font-weight:700;margin:0 0 22px;box-shadow:0 14px 30px -18px #d9365e;transition:transform .15s}.create-new:active{transform:scale(.98)}.create-new .ic{stroke:#fff;width:22px;height:22px}
 body.pushed .appbar:has(.text-btn){grid-template-columns:96px 1fr 96px}.appbar .appbar-right{display:flex;justify-content:flex-end}.text-btn{height:40px;padding:0 6px;font-size:17px;font-weight:700;color:var(--accent)}
 .fuel-input.start .field-grid{align-items:end}.fuel-input.start .field{margin-bottom:0}
+
+/* create/edit screens: no tab bar, iOS-style preview */
+body.pushed .tabbar{display:none}
+body.pushed.has-bar .actionbar{bottom:0;padding-bottom:calc(10px + var(--safe-b))}
+body.pushed .app{padding-bottom:calc(96px + var(--safe-b))}
+body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
+.dialog-top{display:grid;grid-template-columns:44px 1fr 44px;gap:8px}
+#preview-title{text-align:center;font-size:17px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.round.accent{background:var(--accent);color:#fff;box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 40%,transparent)}.round.accent .ic{width:22px;height:22px}.round.accent:active{transform:scale(.94)}
+#preview-switch{position:sticky;bottom:0;z-index:2;display:flex;justify-content:center;padding:10px 16px calc(12px + var(--safe-b));background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:saturate(1.8) blur(20px);-webkit-backdrop-filter:saturate(1.8) blur(20px)}
+#preview-switch:empty{display:none}
+#preview-switch .segmented{width:100%;max-width:340px}
+#preview-dialog[open]{display:flex;flex-direction:column;overflow:hidden}#preview-dialog .dialog-top{flex-shrink:0}#full-preview{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}#preview-switch{position:static;flex-shrink:0;border-top:1px solid var(--line)}
+.round.accent{width:40px;height:40px;box-shadow:0 3px 10px color-mix(in srgb,var(--accent) 30%,transparent)}.round.accent .ic{width:20px;height:20px}
+#preview-dialog #preview-switch{flex:none;align-items:center}#preview-dialog #preview-switch .segmented{margin:0}
