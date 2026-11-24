@@ -234,3 +234,12 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 .odo span{font-size:inherit!important;color:inherit!important;font-weight:inherit!important;gap:0!important;align-items:initial!important}.odo .odo-d{display:inline-block!important}.odo .odo-strip{display:flex!important;flex-direction:column}.odo .odo-strip span{display:block!important}.odo .odo-sep{display:inline-block!important}
 .lock-top{color:var(--muted)}
 .journey b.odo{display:flex;justify-content:flex-end;height:auto}
+
+.odo-strip.up{transform:translateY(0)}.odo-strip.up.go{transform:translateY(-1.1em);transition:transform .32s cubic-bezier(.33,1,.68,1)}
+.odo-strip.down{transform:translateY(-1.1em)}.odo-strip.down.go{transform:translateY(0);transition:transform .32s cubic-bezier(.33,1,.68,1)}
+.odo .odo-strip{transition:none}.odo .odo-strip.go{transition:transform .32s cubic-bezier(.33,1,.68,1)!important}
+.odo-in{animation:odo-in .35s ease-out both}@keyframes odo-in{from{opacity:0;transform:translateY(.12em)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.odo-in{animation:none}}
+#ptr{position:fixed;top:calc(var(--safe-t,env(safe-area-inset-top)) - 36px);left:50%;z-index:60;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--bg);box-shadow:0 4px 14px rgba(0,0,0,.14);color:var(--muted);opacity:0;transform:translate(-50%,0);transition:opacity .2s,transform .25s cubic-bezier(.33,1,.68,1);pointer-events:none}
+#ptr .ic{width:18px;height:18px}#ptr.ready{color:var(--accent)}#ptr.spin .ic{animation:ptr-spin .7s linear infinite}@keyframes ptr-spin{to{transform:rotate(360deg)}}
+@media print{#ptr{display:none!important}}
