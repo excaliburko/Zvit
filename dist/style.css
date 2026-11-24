@@ -261,3 +261,7 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 
 #boot-skel{padding-top:44px}#boot-skel.gone{opacity:0;transition:opacity .3s ease}
 .skel-line{height:12px;width:90px;margin:0 4px 10px;border-radius:6px}.skel-h1{height:34px;width:62%;margin:0 4px 18px;border-radius:10px}
+
+#content.locked input:disabled,#content.locked textarea:disabled,#content.locked select:disabled{opacity:1;color:var(--text);-webkit-text-fill-color:var(--text)}
+#content.locked input[type=range]:disabled{opacity:.9}
+#content.locked button:disabled{opacity:.3}
