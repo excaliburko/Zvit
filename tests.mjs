@@ -141,3 +141,7 @@ test('Monthly journal isolates users, updates a month once and rejects partial p
  assert.equal((await (await fetch(base+'/api/fuel',{headers:{Cookie:'zvit_session='+b}})).json()).records.length,0);
  assert.equal((await post({...row,from:'2026-11-06'})).status,400);
 });
+test('Manual order date overrides the automatic one',()=>{
+ assert.equal(eventDates({receiptDate:'2026-11-10',orderDate:'2026-11-05'}).orderDate,'2026-11-05');
+ assert.equal(eventDates({receiptDate:'2026-11-10',orderDate:''}).orderDate,'2026-11-09');
+});
