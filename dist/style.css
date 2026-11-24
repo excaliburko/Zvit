@@ -228,3 +228,4 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 .bad-text{color:var(--warn)}
 .km-wrap{display:flex;align-items:center;justify-content:center;gap:10px}.lock-btn{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ffffff33;color:#fff;flex-shrink:0}.lock-btn .ic{width:18px;height:18px}.lock-btn:active{transform:scale(.92)}
 .hero[style*="--hero"]{box-shadow:0 16px 34px -22px #0007}
+.fuel-input:focus-within{box-shadow:0 0 0 2px var(--accent) inset;background:color-mix(in srgb,var(--accent) 6%,var(--tile))}#refill-input:focus{caret-color:var(--accent)}
