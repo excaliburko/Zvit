@@ -1,7 +1,7 @@
 // Мережа спочатку, кеш як запасний варіант: після оновлення сайту завжди береться свіжий код,
 // а без інтернету застосунок відкривається з останньої збереженої версії. API ніколи не кешується.
-const CACHE='zvit-shell-v4';
-const SHELL=['/','/app.js','/style.css','/session.mjs','/fuel.mjs','/calc.mjs','/contacts.mjs','/travel-template.mjs','/a5-front.png','/a5-back.png','/icon.svg','/icon-192.png','/manifest.webmanifest','/login','/login.css','/login.js'];
+const CACHE='zvit-shell-v5';
+const SHELL=['/','/app.js','/style.css','/session.mjs','/fuel.mjs','/calc.mjs','/contacts.mjs','/travel-template.mjs','/a5-front.svg','/a5-back.svg','/icon.svg','/icon-192.png','/manifest.webmanifest','/login','/login.css','/login.js'];
 self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('zvit-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('message',event=>{
