@@ -227,3 +227,4 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 .diff-why{margin:12px 2px 0;text-align:left;font-size:14px;line-height:1.45;color:#fff;background:#ffffff26;border-radius:14px;padding:12px 14px}
 .bad-text{color:var(--warn)}
 .km-wrap{display:flex;align-items:center;justify-content:center;gap:10px}.lock-btn{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ffffff33;color:#fff;flex-shrink:0}.lock-btn .ic{width:18px;height:18px}.lock-btn:active{transform:scale(.92)}
+.hero[style*="--hero"]{box-shadow:0 16px 34px -22px #0007}
