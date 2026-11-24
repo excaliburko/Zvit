@@ -252,3 +252,9 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 @keyframes skel{to{transform:translateX(100%)}}
 .skel-hero{height:200px;margin:0 16px 24px}.skel-title{height:22px;width:110px;margin:8px 16px 16px;border-radius:8px}.skel-row{height:56px;margin:0 16px 10px;border-radius:16px}
 @media (prefers-reduced-motion:reduce){#content.enter>*,.skel::after{animation:none}}
+
+.fuel-hero{isolation:isolate;position:relative}
+.hero-fade{position:absolute;inset:0;border-radius:inherit;z-index:-1;pointer-events:none;opacity:1;transition:opacity .55s ease}.hero-fade.go{opacity:0}
+#content.month-out>*:not(.fuel-hero),#content.month-out .fuel-hero>*:not(.month-switch):not(.hero-fade),#content.month-out .month-switch b{opacity:.2;transition:opacity .15s ease}
+#content.month-in>*:not(.fuel-hero),#content.month-in .fuel-hero>*:not(.month-switch):not(.hero-fade),#content.month-in .month-switch b{animation:month-in .32s cubic-bezier(.33,1,.68,1) both}
+@keyframes month-in{from{opacity:.2}to{opacity:1}}

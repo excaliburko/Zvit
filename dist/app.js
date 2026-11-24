@@ -176,13 +176,19 @@ async function saveFuel(){prepareMonthly();if(monthLocked())throw Error('Цей 
 async function previousFuel(){if(!await loadFuel())return;prepareMonthly();const t=state.travel,row=prevRecord(t);if(!row){render();return toast('Немає запису за попередній місяць. Початкові дані залишено для ручного введення.');}const r=travelCalc(row);Object.assign(t,{odometer:r.endOdo,startFuel:r.endFuel,endTarget:r.endFuel,rate:row.rate,autoBasisMonth:t.from.slice(0,7),basis:'попередній місяць '+row.from.slice(0,7)});Object.assign(t,filledTravel(t));save();render();}
 
 function stashDraft(){const t=state.travel;if(!fuelRows.some(x=>sameCar(x.car,t.car)&&x.from===t.from))state.travelDraft=structuredClone(t)}
+let swapping=0;
+async function monthSwap(){const c=$('#content'),y=scrollY,still=matchMedia('(prefers-reduced-motion: reduce)').matches,old=c.querySelector('.fuel-hero'),bg=old?getComputedStyle(old).backgroundImage:'',id=++swapping;
+ c.classList.remove('enter');if(!still&&old){c.classList.remove('month-in');c.classList.add('month-out');await new Promise(r=>setTimeout(r,150));if(id!==swapping)return}
+ render();scrollTo(0,y);c.classList.remove('month-out');if(still)return;
+ const h=c.querySelector('.fuel-hero');if(h&&bg&&bg!=='none'){const o=document.createElement('div');o.className='hero-fade';o.style.backgroundImage=bg;h.prepend(o);requestAnimationFrame(()=>requestAnimationFrame(()=>o.classList.add('go')));setTimeout(()=>o.remove(),700)}
+ c.classList.remove('month-in');void c.offsetWidth;c.classList.add('month-in')}
 async function goMonth(dir){await loadFuel();const t=state.travel,target=shiftMonth(t.from,dir),mine=fuelRows.filter(x=>sameCar(x.car,t.car)).sort((a,b)=>b.from.localeCompare(a.from)),rec=mine.find(x=>x.from.slice(0,7)===target);
  if(rec){stashDraft();state.travel={...defaults().travel,...structuredClone(rec)};state.travel.refill=travelCalc(rec).refill;state.travel.fuelMode='filled'}
  else if(state.travelDraft&&state.travelDraft.from.slice(0,7)===target&&sameCar(state.travelDraft.car,t.car)){state.travel=structuredClone(state.travelDraft)}
  else if(!mine.length||target===shiftMonth(mine[0].from,1)){stashDraft();await newMonth(false);return}
  else return toast(`За ${monthName(target+'-01').replace(/ р\.$/,'')} записів немає.`);
- save();const y=scrollY;render();scrollTo(0,y)}
-async function newMonth(nav=true){await loadFuel();const t=state.travel,mine=fuelRows.filter(x=>sameCar(x.car,t.car)).sort((a,b)=>b.from.localeCompare(a.from)),last=mine[0];const month=last?shiftMonth(last.from,1):today().slice(0,7),bounds=monthBounds(month);const base={...bounds,liters:0,refill:0,realKm:'',fuelMode:'filled',adjustmentKm:0,rows:[{date:bounds.from,route:'',km:0}]};if(last){const r=travelCalc(last);Object.assign(t,base,{startFuel:r.endFuel,endTarget:r.endFuel,odometer:r.endOdo,rate:last.rate,autoBasisMonth:bounds.from.slice(0,7),basis:'попередній місяць '+last.from.slice(0,7)})}else Object.assign(t,base,{autoBasisMonth:bounds.from.slice(0,7)});save();docType='travel';fuelLoaded=true;if(nav){go('travel');setTimeout(()=>{const ri=$('#refill-input');if(ri&&!ri.disabled){ri.focus();ri.select?.()}},380)}else{const y=scrollY;render();scrollTo(0,y)}}
+ save();monthSwap()}
+async function newMonth(nav=true){await loadFuel();const t=state.travel,mine=fuelRows.filter(x=>sameCar(x.car,t.car)).sort((a,b)=>b.from.localeCompare(a.from)),last=mine[0];const month=last?shiftMonth(last.from,1):today().slice(0,7),bounds=monthBounds(month);const base={...bounds,liters:0,refill:0,realKm:'',fuelMode:'filled',adjustmentKm:0,rows:[{date:bounds.from,route:'',km:0}]};if(last){const r=travelCalc(last);Object.assign(t,base,{startFuel:r.endFuel,endTarget:r.endFuel,odometer:r.endOdo,rate:last.rate,autoBasisMonth:bounds.from.slice(0,7),basis:'попередній місяць '+last.from.slice(0,7)})}else Object.assign(t,base,{autoBasisMonth:bounds.from.slice(0,7)});save();docType='travel';fuelLoaded=true;if(nav){go('travel');setTimeout(()=>{const ri=$('#refill-input');if(ri&&!ri.disabled){ri.focus();ri.select?.()}},380)}else monthSwap()}
 let finishing=false;
 function upsertEvent(){const copy=structuredClone(state.event);if(!copy.archiveId)copy.archiveId=state.event.archiveId=crypto.randomUUID();const rec={id:copy.archiveId,type:'event',title:copy.venue,date:copy.date,data:copy,profile:structuredClone(state.profile)},i=state.archive.findIndex(r=>r.id===rec.id);if(i<0)state.archive.push(rec);else state.archive[i]=rec;save()}
 function eventDone(){const errors=eventErrors(true);if(errors.length)return toast('Заповніть: '+errors.join(', ')+'.');upsertEvent();printDoc('order',true)}
@@ -193,7 +199,7 @@ function render(){
  document.body.dataset.view=view;document.body.classList.toggle('pushed',pushed);
  $('#appbar').innerHTML=pushed?`${v.left||`<button class="round ghost" data-action="back" aria-label="Назад">${icon('left')}</button>`}<b>${v.title}</b><span class="appbar-right">${v.right||''}</span>`:'';
  $('#content').innerHTML=v.body;
- {const key=view+':'+fuelLoaded,c=$('#content');if(key!==render.last){render.last=key;if(!matchMedia('(prefers-reduced-motion: reduce)').matches){c.classList.remove('enter');void c.offsetWidth;c.classList.add('enter')}}}
+ {const key=view+':'+fuelLoaded,c=$('#content');if(key!==render.last){render.last=key;if(!matchMedia('(prefers-reduced-motion: reduce)').matches){c.classList.remove('enter');void c.offsetWidth;c.classList.add('enter');clearTimeout(render.t);render.t=setTimeout(()=>c.classList.remove('enter'),700)}}}
  $('#actionbar').innerHTML=v.bar||'';document.body.classList.toggle('has-bar',!!v.bar);
  const tab=rootOf(view);document.querySelectorAll('.tabbar [data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===tab);el.setAttribute('aria-current',el.dataset.view===tab?'page':'false')});
  updateDerived();
