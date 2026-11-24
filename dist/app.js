@@ -177,11 +177,22 @@ async function previousFuel(){if(!await loadFuel())return;prepareMonthly();const
 
 function stashDraft(){const t=state.travel;if(!fuelRows.some(x=>sameCar(x.car,t.car)&&x.from===t.from))state.travelDraft=structuredClone(t)}
 let swapping=0;
-async function monthSwap(){const c=$('#content'),y=scrollY,still=matchMedia('(prefers-reduced-motion: reduce)').matches,old=c.querySelector('.fuel-hero'),bg=old?getComputedStyle(old).backgroundImage:'',id=++swapping;
- c.classList.remove('enter');if(!still&&old){c.classList.remove('month-in');c.classList.add('month-out');await new Promise(r=>setTimeout(r,150));if(id!==swapping)return}
- render();scrollTo(0,y);c.classList.remove('month-out');if(still)return;
- const h=c.querySelector('.fuel-hero');if(h&&bg&&bg!=='none'){const o=document.createElement('div');o.className='hero-fade';o.style.backgroundImage=bg;h.prepend(o);requestAnimationFrame(()=>requestAnimationFrame(()=>o.classList.add('go')));setTimeout(()=>o.remove(),700)}
- c.classList.remove('month-in');void c.offsetWidth;c.classList.add('month-in')}
+const SKIP_LEAF='.odo,[data-odo],#j-odo-start,#j-odo-end,.odo-host,.hero-fade';
+function leafMap(root){const m=new Map();(function walk(el,path){[...el.children].forEach((ch,i)=>{const p=path+'/'+i;if(ch.matches(SKIP_LEAF))return;if(!ch.children.length||ch.matches('svg,input,select,textarea,img,button.round')){m.set(p,{el:ch,sig:[ch.tagName,ch.className.baseVal??ch.className,ch.tagName==='svg'?ch.innerHTML:ch.textContent,ch.value??'',ch.getAttribute('style')||'',ch.disabled?1:0].join('|')});return}walk(ch,p)})})(root,'');return m}
+async function monthSwap(){const old=$('#content'),y=scrollY,still=matchMedia('(prefers-reduced-motion: reduce)').matches,hero=old.querySelector('.fuel-hero'),bg=hero?getComputedStyle(hero).backgroundImage:'',id=++swapping,barRight=$('#appbar .appbar-right')?.innerHTML;
+ old.classList.remove('enter','month-in');old.querySelectorAll('.fade-in').forEach(e=>e.classList.remove('fade-in'));
+ if(still){render();scrollTo(0,y);return}
+ const fresh=document.createElement('main');old.id='content-old';fresh.id='content';fresh.className=old.className;fresh.style.cssText=`position:absolute;visibility:hidden;width:${old.offsetWidth}px;pointer-events:none`;old.before(fresh);
+ rollDelay=170;render.last=view+':'+fuelLoaded;try{render()}finally{rollDelay=0}
+ const a=leafMap(old),b=leafMap(fresh),gone=[],come=[];
+ a.forEach((v,k)=>{const w=b.get(k);if(!w||w.sig!==v.sig)gone.push(v.el)});b.forEach((v,k)=>{const w=a.get(k);if(!w||w.sig!==v.sig)come.push(v.el)});
+ gone.forEach(e=>e.classList.add('fade-out'));
+ const nr=$('#appbar .appbar-right');if(nr&&nr.innerHTML!==barRight){nr.classList.remove('fade-in');void nr.offsetWidth;nr.classList.add('fade-in')}
+ await new Promise(r=>setTimeout(r,160));
+ if(id!==swapping){old.remove();fresh.style.cssText='';return}
+ come.forEach(e=>e.classList.add('fade-in'));old.remove();fresh.style.cssText='';scrollTo(0,y);
+ const h=fresh.querySelector('.fuel-hero');if(h&&bg&&bg!=='none'&&getComputedStyle(h).backgroundImage!==bg){const o=document.createElement('div');o.className='hero-fade';o.style.backgroundImage=bg;h.prepend(o);requestAnimationFrame(()=>requestAnimationFrame(()=>o.classList.add('go')));setTimeout(()=>o.remove(),800)}
+ setTimeout(()=>fresh.querySelectorAll('.fade-in').forEach(e=>e.classList.remove('fade-in')),500)}
 async function goMonth(dir){await loadFuel();const t=state.travel,target=shiftMonth(t.from,dir),mine=fuelRows.filter(x=>sameCar(x.car,t.car)).sort((a,b)=>b.from.localeCompare(a.from)),rec=mine.find(x=>x.from.slice(0,7)===target);
  if(rec){stashDraft();state.travel={...defaults().travel,...structuredClone(rec)};state.travel.refill=travelCalc(rec).refill;state.travel.fuelMode='filled'}
  else if(state.travelDraft&&state.travelDraft.from.slice(0,7)===target&&sameCar(state.travelDraft.car,t.car)){state.travel=structuredClone(state.travelDraft)}
@@ -199,18 +210,18 @@ function render(){
  document.body.dataset.view=view;document.body.classList.toggle('pushed',pushed);
  $('#appbar').innerHTML=pushed?`${v.left||`<button class="round ghost" data-action="back" aria-label="Назад">${icon('left')}</button>`}<b>${v.title}</b><span class="appbar-right">${v.right||''}</span>`:'';
  $('#content').innerHTML=v.body;
- {const key=view+':'+fuelLoaded,c=$('#content');if(key!==render.last){render.last=key;if(!matchMedia('(prefers-reduced-motion: reduce)').matches){c.classList.remove('enter');void c.offsetWidth;c.classList.add('enter');clearTimeout(render.t);render.t=setTimeout(()=>c.classList.remove('enter'),700)}}}
+ {const key=view+':'+fuelLoaded,c=$('#content');if(key!==render.last){render.last=key;if(!inVT&&!matchMedia('(prefers-reduced-motion: reduce)').matches){c.classList.remove('enter');void c.offsetWidth;c.classList.add('enter');clearTimeout(render.t);render.t=setTimeout(()=>c.classList.remove('enter'),700)}}}
  $('#actionbar').innerHTML=v.bar||'';document.body.classList.toggle('has-bar',!!v.bar);
  const tab=rootOf(view);document.querySelectorAll('.tabbar [data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===tab);el.setAttribute('aria-current',el.dataset.view===tab?'page':'false')});
  updateDerived();
  document.querySelectorAll('[data-odo]').forEach(el=>roll(el,Number(el.dataset.odo),el.dataset.odoKey));
  if(v.locked){$('#content').querySelectorAll('input,select,textarea,button:not([data-action=lock-info]):not([data-action^=month-])').forEach(el=>{el.disabled=true});$('#appbar').querySelectorAll('[data-action=car-settings]').forEach(el=>el.disabled=true)}
 }
-function transition(dir,fn){if(!document.startViewTransition||matchMedia('(prefers-reduced-motion: reduce)').matches)return fn();document.documentElement.dataset.nav=dir;document.startViewTransition(fn)}
+let inVT=false;function transition(dir,fn){if(dir==='tab'||!document.startViewTransition||matchMedia('(prefers-reduced-motion: reduce)').matches)return fn();document.documentElement.dataset.nav=dir;document.startViewTransition(()=>{inVT=true;try{fn()}finally{inVT=false}})}
 function go(next){if(next===view)return render();const pushed=!!parentOf[next];view=next;if(next==='travel'){docType='travel';fuelLoaded=false}else if(next==='event')docType='order';pushed?history.pushState({view:next,pushed:true},''):history.replaceState({view:next},'');transition(pushed?'forward':'tab',()=>{render();window.scrollTo(0,0)})}
 function back(){if(history.state?.pushed)history.back();else{view=parentOf[view]||'event';history.replaceState({view},'');render()}}
 window.addEventListener('popstate',e=>{if($('#preview-dialog').open)$('#preview-dialog').close();view=e.state?.view||'event';if(view==='travel')docType='travel';transition('back',render)});
-const odoMem={};
+const odoMem={};let rollDelay=0;
 function roll(el,value,key){if(!el)return;if(!Number.isFinite(value)){el.textContent='—';el.classList.remove('odo');odoMem[key]=undefined;return}
  const text=num(round(value)),prev=odoMem[key];odoMem[key]=round(value);
  const old=el.classList.contains('odo')&&el.dataset.text?el.dataset.text:(Number.isFinite(prev)?num(prev):null);
@@ -219,7 +230,7 @@ function roll(el,value,key){if(!el)return;if(!Number.isFinite(value)){el.textCon
  el.innerHTML=[...text].map((ch,i)=>{if(!/\d/.test(ch))return `<span class="odo-sep">${ch}</span>`;const was=o?o[i]:null;if(still||was===null||was===ch)return `<span class="odo-d"><span class="odo-strip"><span>${ch}</span></span></span>`;
   return `<span class="odo-d"><span class="odo-strip ${up?'up':'down'}"><span>${up?was:ch}</span><span>${up?ch:was}</span></span></span>`}).join('');
  if(!o&&!still&&!Number.isFinite(prev))el.classList.add('odo-in');
- requestAnimationFrame(()=>el.querySelectorAll('.odo-strip.up,.odo-strip.down').forEach(st=>st.classList.add('go')))}
+ setTimeout(()=>requestAnimationFrame(()=>el.querySelectorAll('.odo-strip.up,.odo-strip.down').forEach(st=>st.classList.add('go'))),rollDelay)}
 function updateDerived(){
  if(view==='eventEdit'){const oe=eventErrors(false),be=eventErrors(true).filter(x=>!oe.includes(x)),os=$('#order-state'),bs=$('#budget-state'),mark=(el,errs,ok)=>{if(!el)return;el.closest('.doc-card').classList.toggle('ready',!errs.length);el.innerHTML=errs.length?'Бракує: '+esc(errs.join(', ')):icon('check')+ok};mark(os,oe,'Готовий до друку');mark(bs,oe.length?oe:be,money(costTotal(state.event.items))+' ₴');state.event.items.forEach((r,i)=>{const el=document.querySelector(`[data-line-total="${i}"]`);if(el)el.textContent=money(r.qty*r.price)+' ₴'});const errs=eventErrors(true),st=$('#preview-status');if(st){st.className='hero-status '+(errs.length?'warn':'ok');st.innerHTML=errs.length?'Заповніть: '+esc(errs.join(', ')):icon('check')+'Наказ і кошторис готові до друку'}const od=$('#order-date'),o=eventDates(state.event).orderDate;if(od)od.textContent='Дата наказу й кошторису ставиться автоматично на день раніше за дату чеку. Її можна змінити вручну.'}
  if(view==='travel'){prepareMonthly();const t=state.travel,r=fuelMetrics(t),v=(x,u='')=>x===undefined||x===null||!Number.isFinite(x)?'—':num(x)+u;
