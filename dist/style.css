@@ -265,3 +265,7 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 #content.locked input:disabled,#content.locked textarea:disabled,#content.locked select:disabled{opacity:1;color:var(--text);-webkit-text-fill-color:var(--text)}
 #content.locked input[type=range]:disabled{opacity:.9}
 #content.locked button:disabled{opacity:.3}
+
+.refill-plus{all:unset;align-self:center;width:34px;height:34px;border-radius:50%;background:var(--bg);color:var(--accent);font-size:22px;font-weight:700;line-height:34px;text-align:center;cursor:pointer;margin-left:4px}.refill-plus:active{opacity:.6}#refill-sum:empty{display:none}#refill-sum{margin:2px 0 0}
+#content.locked .refill-plus{display:none}
+#refill-input.expr{font-size:24px;letter-spacing:0;max-width:calc(100% - 80px)}#refill-input.expr.long{font-size:19px}
