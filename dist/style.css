@@ -159,7 +159,7 @@ body.has-bar .actionbar{grid-template-columns:1fr}.button.pill{height:56px;borde
 .tank-zone{position:absolute;top:50%;height:16px;transform:translateY(-50%);border-radius:8px;background:color-mix(in srgb,var(--ok) 22%,transparent);z-index:0}
 .tank-row .tank-track input[type=range]{background:linear-gradient(90deg,var(--accent) var(--p,50%),transparent var(--p,50%))}.tank-track::before{content:"";position:absolute;left:0;right:0;top:50%;height:8px;transform:translateY(-50%);border-radius:4px;background:var(--soft)}
 .hint.warn-text{color:var(--warn)}
-.fuel-input label small{font-weight:500}.fuel-input.start{border:2px solid var(--accent)}
+.fuel-input label small{font-weight:500}.fuel-input.start{border:2px solid var(--ma,var(--accent))}
 .route-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 html{-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;text-size-adjust:100%}body{overscroll-behavior-y:none}
 button,a,.tabbar,.appbar,.quick,.hero,.chip,.row,label,summary{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}button,a,summary,select,input[type=range]{touch-action:manipulation}
@@ -228,7 +228,7 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 .bad-text{color:var(--warn)}
 .km-wrap{display:flex;align-items:center;justify-content:center;gap:10px}.lock-btn{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ffffff33;color:#fff;flex-shrink:0}.lock-btn .ic{width:18px;height:18px}.lock-btn:active{transform:scale(.92)}
 .hero[style*="--hero"]{box-shadow:0 16px 34px -22px #0007}
-.fuel-input:focus-within{box-shadow:0 0 0 2px var(--accent) inset;background:color-mix(in srgb,var(--accent) 6%,var(--tile))}#refill-input:focus{caret-color:var(--accent)}
+.fuel-input:not(.tank):focus-within{box-shadow:0 0 0 2px var(--ma,var(--accent)) inset;background:color-mix(in srgb,var(--ma,var(--accent)) 7%,var(--tile))}#refill-input:focus{caret-color:var(--ma,var(--accent))}
 .odo{display:inline-flex;align-items:flex-start;line-height:1.1em;height:1.1em;vertical-align:bottom;font-variant-numeric:tabular-nums}.odo-d{display:inline-block;height:1.1em;overflow:hidden}.odo-strip{display:flex;flex-direction:column;will-change:transform}.odo-strip span{display:block;height:1.1em;line-height:1.1em;text-align:center}.odo-sep{white-space:pre}
 @media (prefers-reduced-motion:reduce){.odo-strip{transition:none!important}}
 .odo span{font-size:inherit!important;color:inherit!important;font-weight:inherit!important;gap:0!important;align-items:initial!important}.odo .odo-d{display:inline-block!important}.odo .odo-strip{display:flex!important;flex-direction:column}.odo .odo-strip span{display:block!important}.odo .odo-sep{display:inline-block!important}
@@ -261,3 +261,12 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 
 #boot-skel{padding-top:44px}#boot-skel.gone{opacity:0;transition:opacity .3s ease}
 .skel-line{height:12px;width:90px;margin:0 4px 10px;border-radius:6px}.skel-h1{height:34px;width:62%;margin:0 4px 18px;border-radius:10px}
+
+#content.locked input:disabled,#content.locked textarea:disabled,#content.locked select:disabled{opacity:1;color:var(--text);-webkit-text-fill-color:var(--text)}
+#content.locked input[type=range]:disabled{opacity:.9}
+#content.locked button:disabled{opacity:.3}
+
+.amount-input{position:relative}.refill-plus{all:unset;position:absolute;right:0;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;background:var(--bg);color:var(--accent);font-size:22px;font-weight:700;line-height:34px;text-align:center;cursor:pointer;}.refill-plus:active{opacity:.6;transform:translateY(-50%) scale(.94)}#refill-sum:empty{display:none}#refill-sum{margin:2px 0 0}
+#content.locked .refill-plus{display:none}
+#refill-input.expr{font-size:24px;letter-spacing:0;max-width:calc(100% - 110px)}#refill-input.expr.long{font-size:19px}
+.refill-plus{color:var(--ma,var(--accent))}.tank-row .tank-track input[type=range]{background:linear-gradient(90deg,var(--ma,var(--accent)) var(--p,50%),transparent var(--p,50%))}
