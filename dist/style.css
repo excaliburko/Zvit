@@ -218,10 +218,6 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 .round.accent{width:40px;height:40px;box-shadow:0 3px 10px color-mix(in srgb,var(--accent) 30%,transparent)}.round.accent .ic{width:20px;height:20px}
 #preview-dialog #preview-switch{flex:none;align-items:center}#preview-dialog #preview-switch .segmented{margin:0}
 
-.last-trip{background:var(--tile);border-radius:var(--radius);padding:16px 18px;margin:0 0 18px}.last-trip .group-title{margin:0 0 10px;padding:0}
-.last-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-bottom:12px}.last-cell{background:var(--bg);border-radius:16px;padding:12px 14px}.last-cell span,.last-check span{display:block;font-size:13px;color:var(--muted);margin-bottom:2px}.last-cell b{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}.last-cell small{font-size:14px;color:var(--muted);font-weight:600}
-.last-check{display:block}.last-check input{background:var(--bg)!important;height:48px}
-.last-diff{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px;margin-top:10px;font-size:15px;min-height:22px}.last-diff b{font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;gap:4px}.last-diff b.warn{color:var(--warn)}.last-diff b.ok{color:var(--ok)}.last-diff b .ic{width:16px;height:16px}.last-diff small{color:var(--muted);font-size:13px}.last-diff .muted{color:var(--muted);font-size:13px}
-.last-trip .group-title{font-size:15px;font-weight:650;color:var(--muted);letter-spacing:0}
 .tank-lock{position:absolute;top:50%;height:8px;transform:translateY(-50%);border-radius:0 4px 4px 0;background:repeating-linear-gradient(135deg,var(--soft) 0 4px,color-mix(in srgb,var(--muted) 35%,transparent) 4px 6px);z-index:0;pointer-events:none}
 .tank-scale{position:relative;display:block;height:14px;margin:10px 70px -6px}.tank-scale span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}.tank-scale span:nth-child(1){left:0}.tank-scale span:nth-child(2){left:50%}.tank-scale span:nth-child(3){left:100%}
+.hero-stats.two{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-stats.two b{font-size:20px}
