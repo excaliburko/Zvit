@@ -53,7 +53,7 @@ input::placeholder{color:var(--muted);opacity:.8}input[type=number]{appearance:t
 input[type=date],input[type=time]{display:flex;align-items:center;-webkit-appearance:none;appearance:none}input::-webkit-date-and-time-value{text-align:left}
 input[readonly]{color:var(--muted)}
 select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a91' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:18px;padding-right:40px}
-.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.field-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 10px}
 /* кнопки */
 .button{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:52px;padding:0 18px;border-radius:16px;background:var(--primary);color:var(--on-primary);font-weight:650;font-size:15px;white-space:nowrap;transition:transform .15s,opacity .15s}
 .button .ic{width:20px;height:20px}.button.secondary{background:var(--tile);color:var(--text)}.button.small{height:40px;border-radius:12px;padding:0 16px}
@@ -76,7 +76,7 @@ details.calc summary::after,details.more summary::after{content:"";width:8px;hei
 details.calc dl{background:var(--tile);border-radius:var(--radius);padding:4px 16px;margin:4px 0 0}details.calc dl div{display:flex;justify-content:space-between;gap:12px;padding:12px 0;font-size:15px}details.calc dl div+div{border-top:1px solid var(--line)}dt{color:var(--muted)}dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums}
 details.more summary{color:var(--muted)}
 /* кошторис */
-.budget-row{display:grid;grid-template-columns:1fr 1fr 1fr 40px;grid-template-areas:"name name name x" "qty price total total";gap:8px;align-items:end;padding:12px 0;border-bottom:1px solid var(--line)}.budget-row:first-child{padding-top:0}
+.budget-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 40px;grid-template-areas:"name name name x" "qty price total total";gap:8px;align-items:end;padding:12px 0;border-bottom:1px solid var(--line)}.budget-row:first-child{padding-top:0}
 .b-name{grid-area:name}.budget-row .icon-btn{grid-area:x}.budget-row .mini:nth-of-type(1){grid-area:qty}.budget-row .mini:nth-of-type(2){grid-area:price}.b-total{grid-area:total;text-align:right;align-self:center;font-variant-numeric:tabular-nums;font-size:16px;padding-top:18px}
 .mini span{display:block;font-size:12px;color:var(--muted);margin:0 0 4px 4px}.mini input{height:44px}
 .budget-rows+.add-row{margin-top:12px}
@@ -93,7 +93,7 @@ details.more summary{color:var(--muted)}
 /* нижні панелі */
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:center;gap:0;padding:6px 8px calc(6px + var(--safe-b));background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:saturate(1.8) blur(20px);-webkit-backdrop-filter:saturate(1.8) blur(20px);border-top:1px solid var(--line)}
 .tabbar button{flex:1;max-width:180px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;font-size:11px;font-weight:600;color:var(--muted)}.tabbar button.active{color:var(--accent)}.tabbar button.active .ic{stroke-width:2.4}.tabbar .ic{width:24px;height:24px}
-body.pushed .tabbar{display:none}
+
 .actionbar{display:none}
 body.has-bar .actionbar{position:fixed;left:0;right:0;bottom:0;z-index:31;display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:8px;padding:10px max(16px,calc(50vw - 284px)) calc(10px + var(--safe-b));border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:saturate(1.8) blur(20px);-webkit-backdrop-filter:saturate(1.8) blur(20px)}
 .actionbar .button{padding:0 10px;font-size:14px;gap:6px}
@@ -184,3 +184,18 @@ body.offline::before{content:"Офлайн · зміни зберігаютьс�
 .row.picker-empty{background:var(--tile);border-radius:16px;margin:0 0 12px;padding:10px 14px}.row.picker-empty .avatar{background:var(--bg)}.row.picker-empty>.ic{color:var(--muted)}
 .fuel-hero~details.more{margin:0 -16px;padding:4px 16px;border-top:1px solid var(--line)}.fuel-hero~details.more[open]{padding-bottom:16px}.fuel-hero~.group+details.more{border-top:8px solid var(--tile);padding-top:10px}@media(min-width:640px){.fuel-hero~details.more{margin:0;padding-left:0;padding-right:0}}
 body.has-bar .actionbar:has(.bar-2){grid-template-columns:1fr}.bar-2{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}.bar-2 .button{height:52px;border-radius:26px;font-size:15px}
+
+/* Нижня навігація завжди видима, панель дії стоїть над нею */
+:root{--tab-h:66px}
+body.has-bar .actionbar{bottom:calc(var(--tab-h) + var(--safe-b));padding-bottom:10px;border-top:1px solid var(--line)}
+body.has-bar .app,body.pushed .app{padding-bottom:calc(var(--tab-h) + 96px + var(--safe-b))}
+body.has-bar #toast{bottom:calc(var(--tab-h) + 86px + var(--safe-b))}
+.tabbar{min-height:calc(var(--tab-h) + var(--safe-b))}
+/* Без горизонтального скролу: дати й сітки не розпирають екран */
+html,body{max-width:100%}.app{overflow-x:clip}
+input,select{max-width:100%}input[type=date],input[type=time]{min-width:0;width:100%}
+.field,.mini,.stepper{min-width:0}.stepper input{min-width:0}
+.journey .j-head,.journey .j-row{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) 18px minmax(0,1fr)}
+.sheet b{min-width:0;overflow-wrap:anywhere}
+@media print{.tabbar,.actionbar{display:none!important}}
+.fuel-input input:not(#refill-input):not([type=range]){background:var(--bg)}
