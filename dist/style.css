@@ -243,3 +243,12 @@ body.pushed.has-bar #toast{bottom:calc(86px + var(--safe-b))}
 #ptr{position:fixed;top:calc(var(--safe-t,env(safe-area-inset-top)) - 36px);left:50%;z-index:60;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--bg);box-shadow:0 4px 14px rgba(0,0,0,.14);color:var(--muted);opacity:0;transform:translate(-50%,0);transition:opacity .2s,transform .25s cubic-bezier(.33,1,.68,1);pointer-events:none}
 #ptr .ic{width:18px;height:18px}#ptr.ready{color:var(--accent)}#ptr.spin .ic{animation:ptr-spin .7s linear infinite}@keyframes ptr-spin{to{transform:rotate(360deg)}}
 @media print{#ptr{display:none!important}}
+
+#content.enter>*{animation:content-in .34s cubic-bezier(.33,1,.68,1) both}
+#content.enter>*:nth-child(2){animation-delay:.03s}#content.enter>*:nth-child(3){animation-delay:.06s}#content.enter>*:nth-child(4){animation-delay:.09s}#content.enter>*:nth-child(5){animation-delay:.12s}#content.enter>*:nth-child(n+6){animation-delay:.15s}
+@keyframes content-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.skel{background:var(--field,#f2f2f4);border-radius:24px;position:relative;overflow:hidden}
+.skel::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--bg) 70%,transparent),transparent);transform:translateX(-100%);animation:skel 1.2s ease-in-out infinite}
+@keyframes skel{to{transform:translateX(100%)}}
+.skel-hero{height:200px;margin:0 16px 24px}.skel-title{height:22px;width:110px;margin:8px 16px 16px;border-radius:8px}.skel-row{height:56px;margin:0 16px 10px;border-radius:16px}
+@media (prefers-reduced-motion:reduce){#content.enter>*,.skel::after{animation:none}}
