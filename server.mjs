@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {createAuthStore,verifyPassword} from './auth.mjs';
 const root=fileURLToPath(new URL('./dist/',import.meta.url));
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json'};
-const publicPaths=new Set(['/login','/login.html','/login.css','/login.js','/icon.svg','/icon-192.png','/icon-512.png','/manifest.webmanifest','/sw.js']);
+const publicPaths=new Set(['/login','/login.html','/login.css','/login.js','/icon.svg','/icon-192.png','/icon-512.png','/icon-maskable-192.png','/icon-maskable-512.png','/apple-touch-icon.png','/manifest.webmanifest','/sw.js']);
 export function createServer({auth}={}){
  const attempts=new Map();let verifications=0;
  return http.createServer(async(req,res)=>{
