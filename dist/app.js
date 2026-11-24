@@ -12,14 +12,32 @@ const longDate=s=>{if(!s)return '________________';const d=new Date(s+'T12:00:00
 const defaults=()=>({version:1,event:{venue:'',date:today(),receiptDate:'',number:'',city:'Київ',person:'',products:['Дона'],items:['Чай','Кава','Цукерки','Печиво'].map(name=>({name,qty:1,price:0}))},profile:{company:'«МЕДА Фармасьютікалз Світселенд ГмБх»',head:'В. С. Піонт',budgetHead:'Піонт В.С.',position:'Голова представництва'},products:['Дона','Целебрекс','Лірика','Алдара','Елідел','Зіклара'],travel:{liters:0,rate:10,startFuel:20,endTarget:20,adjustmentKm:0,refill:0,odometer:12675.7,basis:'seat · вересень 2026 · D21/F21/G21',driver:'',car:'SEAT',plate:'',from:today(),to:today(),rows:[{date:today(),route:'',km:0}]},archive:[]});
 const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;if(standalone)document.documentElement.classList.add('standalone');
 let state=defaults(),storageOK=true,view='event',docType='order',deferredInstall,contactKind='clinics';
-try{const saved=JSON.parse(localStorage.getItem(storageKey)||(session.user.role==='admin'?localStorage.getItem('zvit-v1'):null));if(saved&&saved.version===1&&saved.event&&saved.travel&&Array.isArray(saved.archive))state={...state,...saved,profile:{...state.profile,...saved.profile}}}catch{storageOK=false}
+const okState=x=>x&&x.version===1&&x.event&&x.travel&&Array.isArray(x.archive);
+const DIRTY='zvit-dirty:'+session.user.id;let pushTimer=null,pushing=null;
+const isDirty=()=>{try{return localStorage.getItem(DIRTY)==='1'}catch{return false}};
+let localSaved=null;try{localSaved=JSON.parse(localStorage.getItem(storageKey)||(session.user.role==='admin'?localStorage.getItem('zvit-v1'):null))}catch{storageOK=false}
+// Усі дані користувача живуть у базі на сервері. Локальна копія лише для роботи без мережі.
+let serverSaved=null,serverReached=false;
+if(!session.offline){try{const r=await Promise.race([api('/api/state'),new Promise((_,f)=>setTimeout(()=>f(Error('timeout')),5000))]);serverReached=true;serverSaved=r.state}catch{}}
+const chosen=okState(serverSaved)&&!(isDirty()&&okState(localSaved))?serverSaved:okState(localSaved)?localSaved:null;
+if(chosen)state={...state,...chosen,profile:{...state.profile,...chosen.profile}};
+// Перший вхід після переходу на серверне зберігання: записи, які були лише на цьому пристрої, додаються до серверних, а не губляться.
+const SYNCED='zvit-synced:'+session.user.id;let mergedLocal=false;
+try{if(chosen===serverSaved&&okState(localSaved)&&!localStorage.getItem(SYNCED)){for(const k of ['archive','clinics','representatives']){const mine=Array.isArray(localSaved[k])?localSaved[k]:[],have=new Set((state[k]||[]).map(x=>x?.id));const extra=mine.filter(x=>x?.id&&!have.has(x.id));if(extra.length){state[k]=[...(state[k]||[]),...extra];mergedLocal=true}}}if(serverReached)localStorage.setItem(SYNCED,'1')}catch{}
+const pushFirst=serverReached&&(mergedLocal||okState(localSaved)&&(!okState(serverSaved)||isDirty()));
 migrateDirectories(state);
 if(Array.isArray(state.products)&&!state.products.includes('Зіклара'))state.products.push('Зіклара');state.event.city='Київ';state.event.number='';
 if(!state.preset||typeof state.preset!=='object')state.preset={city:'',person:'',representativeId:'',products:[],items:[]};
 state.travel.endTarget ??= state.travel.startFuel;state.travel.adjustmentKm ??= 0;
+if(pushFirst){try{localStorage.setItem(DIRTY,'1')}catch{}setTimeout(()=>pushState(),0)}else if(chosen===serverSaved&&chosen){try{localStorage.setItem(storageKey,JSON.stringify(state))}catch{}}
 const parentOf={eventEdit:'event',eventSettings:'profile',travel:'fuel',carSettings:'profile',contacts:'profile',signer:'profile',accounts:'profile',password:'profile'};
 const rootOf=v=>parentOf[v]?rootOf(parentOf[v]):v;
-function save(){try{localStorage.setItem(storageKey,JSON.stringify(state));storageOK=true}catch{storageOK=false}}
+function save(){try{localStorage.setItem(storageKey,JSON.stringify(state));localStorage.setItem(DIRTY,'1');storageOK=true}catch{storageOK=false}schedulePush()}
+function schedulePush(delay=800){clearTimeout(pushTimer);pushTimer=setTimeout(pushState,delay)}
+async function pushState(){clearTimeout(pushTimer);if(pushing)return pushing.then(()=>isDirty()&&pushState());const snap=JSON.stringify(state);pushing=fetch('/api/state',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:JSON.parse(snap)}),keepalive:snap.length<60000}).then(r=>{if(r.ok&&JSON.stringify(state)===snap){try{localStorage.removeItem(DIRTY)}catch{}}else if(r.status===401){location.replace('/login')}}).catch(()=>{}).finally(()=>{pushing=null});return pushing}
+async function pullState(){if(isDirty()||pushing)return;try{const r=await api('/api/state');if(okState(r.state)&&JSON.stringify(r.state)!==JSON.stringify(state)&&!isDirty()){state={...defaults(),...r.state,profile:{...defaults().profile,...r.state.profile}};try{localStorage.setItem(storageKey,JSON.stringify(state))}catch{}if(!['eventEdit','travel'].includes(view)||!document.activeElement?.matches?.('input,textarea,select'))render()}}catch{}}
+window.addEventListener('online',()=>isDirty()&&pushState());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){if(isDirty())pushState()}else pullState()});
 function toast(msg){$('#toast').textContent=msg;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),4000)}
 
 /* ---------- Іконки ---------- */

@@ -20,6 +20,7 @@ export function createAuthStore(filename,bootstrap={}){
   db.prepare('INSERT INTO users(id,username,name,password_hash,role) VALUES(?,?,?,?,?)').run(randomUUID(),bootstrap.username,'Адміністратор',bootstrap.passwordHash,'admin');
  }
  db.exec('CREATE TABLE IF NOT EXISTS fuel_records(user_id TEXT NOT NULL REFERENCES users(id),vehicle TEXT NOT NULL,period_start TEXT NOT NULL,period_end TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(user_id,vehicle,period_start,period_end));');
+ db.exec('CREATE TABLE IF NOT EXISTS user_state(user_id TEXT PRIMARY KEY REFERENCES users(id),payload TEXT NOT NULL,updated INTEGER NOT NULL);');
  const publicUser=row=>row?{id:row.id,username:row.username,name:row.name,role:row.role,active:!!row.active}:null;
  return {
   db,
