@@ -31,12 +31,13 @@ export function createServer({auth}={}){
     if(pathname==='/api/session'&&req.method==='GET')return user?json(200,{user}):json(401,{error:'Увійдіть до застосунку.'});
     if(pathname==='/api/fuel'&&req.method==='GET'&&user)await seedUserFuel(auth,user.username);
     if(pathname==='/api/fuel'&&req.method==='GET')return user?json(200,{records:auth.db.prepare('SELECT payload FROM fuel_records WHERE user_id=? ORDER BY period_start').all(user.id).map(row=>JSON.parse(row.payload))}):json(401,{error:'Увійдіть до застосунку.'});
+    if(pathname==='/api/state'&&req.method==='GET'){if(!user)return json(401,{error:'Увійдіть до застосунку.'});const row=auth.db.prepare('SELECT payload,updated FROM user_state WHERE user_id=?').get(user.id);return json(200,{state:row?JSON.parse(row.payload):null,updated:row?.updated||0})}
     if(pathname==='/api/users'&&req.method==='GET')return !user?json(401,{error:'Увійдіть до застосунку.'}):user.role==='admin'?json(200,{users:auth.list()}):json(403,{error:'Потрібен доступ адміністратора.'});
     if(!['POST','PATCH'].includes(req.method))return json(405,{error:'Метод не підтримується.'});
     const origin=req.headers.origin;
     if(req.headers['sec-fetch-site']==='cross-site'||(origin&&new URL(origin).host!==req.headers.host))return json(403,{error:'Запит з іншого сайту заборонено.'});
     if(!String(req.headers['content-type']).startsWith('application/json'))return json(415,{error:'Потрібен JSON.'});
-    let size=0,parts=[];for await(const part of req){size+=part.length;if(size>8192)return json(413,{error:'Запит завеликий.'});parts.push(part);}
+    const maxBody=pathname==='/api/state'?4*1024*1024:8192;let size=0,parts=[];for await(const part of req){size+=part.length;if(size>maxBody)return json(413,{error:'Запит завеликий.'});parts.push(part);}
     let body;try{body=JSON.parse(Buffer.concat(parts).toString());if(!body||typeof body!=='object'||Array.isArray(body))throw Error();}catch{return json(400,{error:'Некоректний запит.'});}
     const passwordOK=value=>typeof value==='string'&&value.length>=12&&value.length<=256;
     if(pathname==='/api/login'&&req.method==='POST'){
@@ -55,6 +56,7 @@ export function createServer({auth}={}){
     }
     if(pathname==='/api/logout'&&req.method==='POST'){auth.revoke(cookie);setCookie('');return json(200,{ok:true});}
     if(!user)return json(401,{error:'Увійдіть до застосунку.'});
+    if(pathname==='/api/state'&&req.method==='POST'){const st=body.state;if(!st||typeof st!=='object'||Array.isArray(st)||st.version!==1||!st.event||!st.travel||!Array.isArray(st.archive))return json(400,{error:'Некоректні дані.'});const updated=Date.now();auth.db.prepare('INSERT INTO user_state(user_id,payload,updated) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload,updated=excluded.updated').run(user.id,JSON.stringify(st),updated);return json(200,{updated})}
     if(pathname==='/api/fuel'&&req.method==='POST'){if(!validFuel(body)||!monthBounds(body.from.slice(0,7))||monthBounds(body.from.slice(0,7)).from!==body.from||monthBounds(body.from.slice(0,7)).to!==body.to)return json(400,{error:'Перевірте дані пального та період.'});const vehicle=body.car.trim().toUpperCase()+'|'+body.plate.trim().toUpperCase();if(auth.db.prepare("SELECT 1 FROM fuel_records WHERE user_id=? AND substr(vehicle,1,instr(vehicle,'|')-1)=? AND period_start>? LIMIT 1").get(user.id,body.car.trim().toUpperCase(),body.from))return json(409,{error:'Цей місяць закрито: уже є наступний збережений місяць.'});auth.db.prepare('INSERT INTO fuel_records VALUES(?,?,?,?,?) ON CONFLICT(user_id,vehicle,period_start,period_end) DO UPDATE SET payload=excluded.payload').run(user.id,vehicle,body.from,body.to,JSON.stringify(body));return json(200,{ok:true});}
     if(pathname==='/api/fuel/import'&&req.method==='POST'){if(user.role!=='admin')return json(403,{error:'Імпорт Excel доступний адміністратору.'});const rows=JSON.parse(await fs.readFile(new URL('./fuel-seed.json',import.meta.url),'utf8'));const insert=auth.db.prepare('INSERT OR IGNORE INTO fuel_records VALUES(?,?,?,?,?)');auth.db.exec('BEGIN');try{for(const row of rows)insert.run(user.id,row.car+'|',row.from,row.to,JSON.stringify(row));auth.db.exec('COMMIT');}catch(error){auth.db.exec('ROLLBACK');throw error;}return json(200,{ok:true});}
     if(pathname==='/api/password'&&req.method==='POST'){
