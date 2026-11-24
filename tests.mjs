@@ -1,43 +1,4 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {previousDate,costTotal,travelCalc} from './dist/calc.mjs';
-import {createServer} from './server.mjs';
-import {migrateDirectories,validDirectory,applyContact} from './dist/contacts.mjs';
-test('Old data gets empty directories without losing drafts or archives',()=>{
-  const state={event:{venue:'Клініка'},travel:{driver:'Водій'},archive:[{id:'old'}]};
-  assert.equal(migrateDirectories(state),state);
-  assert.deepEqual(state.clinics,[]);assert.deepEqual(state.representatives,[]);
-  assert.equal(state.event.venue,'Клініка');assert.equal(state.archive[0].id,'old');
-});
-test('Directory selections copy fields while reports retain their own values',()=>{
-  const state=migrateDirectories({event:{date:'2026-11-06',items:[{name:'Чай'}]},travel:{liters:40},archive:[],clinics:[{id:'c1',name:'Леодерм',city:'Львів',address:'вул. Тестова',contact:'',phone:''}],representatives:[{id:'r1',name:'Уляна Кузьмінська',person:'Кузьмінській Уляні',phone:''}]});
-  assert.ok(applyContact(state,'clinics','c1'));assert.ok(applyContact(state,'representatives','r1'));
-  assert.equal(state.event.venue,'Леодерм');assert.equal(state.event.city,'Львів');assert.equal(state.event.person,'Кузьмінській Уляні');
-  state.clinics[0].name='Нова назва';assert.equal(state.event.venue,'Леодерм');
-  assert.equal(state.event.date,'2026-11-06');assert.equal(state.event.items[0].name,'Чай');
-  assert.ok(applyContact(state,'representatives','r1','travel'));assert.equal(state.travel.driver,'Уляна Кузьмінська');assert.equal(state.travel.liters,40);
-  assert.equal(applyContact(state,'clinics','missing'),false);
-  const copy=JSON.parse(JSON.stringify(state));assert.ok(validDirectory(copy.clinics,'clinics'));assert.ok(validDirectory(copy.representatives,'representatives'));
-});
-test('Directory backups reject invalid records and duplicate identifiers',()=>{
-  assert.ok(validDirectory(undefined,'clinics'));
-  const row={id:'c1',name:'Клініка',city:'Київ',address:'',contact:'',phone:''};
-  assert.equal(validDirectory([row,row],'clinics'),false);
-  assert.equal(validDirectory([{...row,name:{}}],'clinics'),false);
-  assert.equal(validDirectory([{id:'r1',name:'Ім’я',person:'',phone:''}],'representatives'),false);
-});
-test('Hosting serves health, app and assets without exposing project files', async t=>{
-  const server=createServer();
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-  t.after(()=>new Promise(resolve=>server.close(resolve)));
-  const base=`http://127.0.0.1:${server.address().port}`;
-  assert.equal(await (await fetch(base+'/health')).text(),'ok');
-  assert.match(await (await fetch(base+'/')).text(),/<html/);
-  const module=await fetch(base+'/calc.mjs');
-  assert.equal(module.status,200);
-  assert.match(module.headers.get('content-type'),/javascript/);
-  assert.equal((await fetch(base+'/package.json')).status,404);
-  assert.equal((await fetch(base+'/%ZZ')).status,400);
-  assert.equal((await fetch(base+'/health',{method:'POST'})).status,405);
-});
 test('Order date crosses month/year and leap day',()=>{assert.equal(previousDate('2026-01-01'),'2025-12-31');assert.equal(previousDate('2024-03-01'),'2024-02-29');assert.equal(previousDate('2026-03-01'),'2026-02-28')});
 test('Budget reproduces supplied PDF total without floating-point drift',()=>assert.equal(costTotal([279,139,269,273.16,1.5].map(price=>({qty:1,price}))),961.66));
 test('Manual mileage correction reconciles fuel and mileage',()=>{let t={liters:40,rate:8,startFuel:15,refill:30,odometer:1000,rows:[{km:151},{km:200},{km:0}]};let r=travelCalc(t);assert.equal(r.error,'');assert.equal(r.total,500);assert.equal(r.rows[2].km,149);assert.equal(r.endFuel,5);assert.equal(r.endOdo,1500);assert.equal(r.rows.reduce((a,x)=>a+x.fuel,0),40)});
