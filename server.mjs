@@ -9,7 +9,9 @@ const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=
 const publicPaths=new Set(['/login','/login.html','/login.css','/login.js','/icon.svg','/icon-192.png','/icon-512.png','/icon-maskable-192.png','/icon-maskable-512.png','/apple-touch-icon.png','/manifest.webmanifest','/sw.js']);
 // Per-user starting history: inserted once, only while the user has no fuel months yet.
 const USER_SEEDS={'uliana.kuzminsky@gmail.com':'fuel-seed-uliana.json'};
-export async function seedUserFuel(auth,username){const file=USER_SEEDS[String(username||'').toLowerCase()];if(!file)return false;const u=auth.find(username);if(!u||auth.db.prepare('SELECT 1 FROM fuel_records WHERE user_id=? LIMIT 1').get(u.id))return false;const rows=JSON.parse(await fs.readFile(new URL('./'+file,import.meta.url),'utf8'));const insert=auth.db.prepare('INSERT OR IGNORE INTO fuel_records VALUES(?,?,?,?,?)');auth.db.exec('BEGIN');try{for(const row of rows)insert.run(u.id,row.car+'|',row.from,row.to,JSON.stringify(row));auth.db.exec('COMMIT');}catch(error){auth.db.exec('ROLLBACK');throw error;}console.log(`Seeded ${rows.length} fuel months for ${u.username}`);return true;}
+async function insertSeed(auth,userId,file){const rows=JSON.parse(await fs.readFile(new URL('./'+file,import.meta.url),'utf8'));const insert=auth.db.prepare('INSERT OR IGNORE INTO fuel_records VALUES(?,?,?,?,?)');let added=0;auth.db.exec('BEGIN');try{for(const row of rows)added+=insert.run(userId,row.car+'|',row.from,row.to,JSON.stringify(row)).changes;auth.db.exec('COMMIT');}catch(error){auth.db.exec('ROLLBACK');throw error;}return added;}
+export async function seedUserFuel(auth,username){const file=USER_SEEDS[String(username||'').toLowerCase()];if(!file)return false;const u=auth.find(username);if(!u||auth.db.prepare('SELECT 1 FROM fuel_records WHERE user_id=? LIMIT 1').get(u.id))return false;const added=await insertSeed(auth,u.id,file);console.log(`Seeded ${added} fuel months for ${u.username}`);return true;}
+const DEFAULT_SEED=Object.values(USER_SEEDS)[0];
 export function createServer({auth}={}){
  const attempts=new Map();let verifications=0;
  return http.createServer(async(req,res)=>{
@@ -27,6 +29,7 @@ export function createServer({auth}={}){
    if(pathname.startsWith('/api/')){
     if(!auth)return json(503,{error:'Вхід ще не налаштовано. Зверніться до адміністратора.'});
     if(pathname==='/api/session'&&req.method==='GET')return user?json(200,{user}):json(401,{error:'Увійдіть до застосунку.'});
+    if(pathname==='/api/fuel'&&req.method==='GET'&&user)await seedUserFuel(auth,user.username);
     if(pathname==='/api/fuel'&&req.method==='GET')return user?json(200,{records:auth.db.prepare('SELECT payload FROM fuel_records WHERE user_id=? ORDER BY period_start').all(user.id).map(row=>JSON.parse(row.payload))}):json(401,{error:'Увійдіть до застосунку.'});
     if(pathname==='/api/users'&&req.method==='GET')return !user?json(401,{error:'Увійдіть до застосунку.'}):user.role==='admin'?json(200,{users:auth.list()}):json(403,{error:'Потрібен доступ адміністратора.'});
     if(!['POST','PATCH'].includes(req.method))return json(405,{error:'Метод не підтримується.'});
@@ -73,6 +76,7 @@ export function createServer({auth}={}){
      if(target.id===user.id)return json(400,{error:'Власний пароль змінюйте в налаштуваннях. Власний доступ заблокувати не можна.'});
      if(body.password!==undefined){if(!passwordOK(body.password))return json(400,{error:'Пароль має містити від 12 до 256 символів.'});await auth.password(target.id,body.password);}
      if(typeof body.active==='boolean')auth.active(target.id,body.active);
+     if(body.seedFuel===true){const added=await insertSeed(auth,target.id,USER_SEEDS[target.username.toLowerCase()]||DEFAULT_SEED);console.log(`Admin seeded ${added} fuel months for ${target.username}`);return json(200,{ok:true,added});}
      return json(200,{ok:true});
     }
     return json(404,{error:'Не знайдено.'});
