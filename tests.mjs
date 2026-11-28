@@ -115,8 +115,8 @@ test('Old reports need a receipt date and impossible dates are rejected',()=>{
 test('Budget reproduces supplied PDF total without floating-point drift',()=>assert.equal(costTotal([279,139,269,273.16,1.5].map(price=>({qty:1,price}))),961.66));
 test('Manual mileage correction reconciles fuel and mileage',()=>{let t={liters:40,rate:8,startFuel:15,refill:30,odometer:1000,rows:[{km:151},{km:200},{km:0}]};let r=travelCalc(t);assert.equal(r.error,'');assert.equal(r.total,500);assert.equal(r.rows[2].km,149);assert.equal(r.endFuel,5);assert.equal(r.endOdo,1500);assert.equal(r.rows.reduce((a,x)=>a+x.fuel,0),40)});
 test('Invalid rate, overspent fuel and excessive routes cannot balance',()=>{assert.ok(travelCalc({liters:20,rate:0}).error);assert.ok(travelCalc({liters:20,rate:10,startFuel:0,refill:0,rows:[{km:0}]}).error);assert.ok(travelCalc({liters:20,rate:10,startFuel:20,rows:[{km:300},{km:0}]}).error)});
-test('Excel seat September 2026 round-trip',()=>{const r=travelCalc({liters:69.68,rate:10,startFuel:15,endTarget:20,odometer:11978.9,rows:[{km:0}]});assert.equal(r.refill,74.68);assert.equal(r.endFuel,20);assert.equal(r.total,696.8);assert.equal(r.endOdo,12675.7);assert.equal(r.normFuel,69.68);assert.equal(r.actualRate,10)});
-test('Excel seat July 2026 mileage correction preserves actual fuel',()=>{const r=travelCalc({liters:45.49,rate:10,startFuel:5,endTarget:5,odometer:10793.7,adjustmentKm:35,rows:[{km:0}]});assert.equal(r.refill,45.49);assert.equal(r.total,489.9);assert.equal(r.endOdo,11283.6);assert.equal(r.normFuel,48.99);assert.equal(r.actualRate,9.2856);assert.equal(r.fuelDifference,-3.5);assert.equal(r.rows[0].fuel,45.49)});
+test('Excel seat September 2026 round-trip rounds odometer to whole km',()=>{const r=travelCalc({liters:69.68,rate:10,startFuel:15,endTarget:20,odometer:11978.9,rows:[{km:0}]});assert.equal(r.refill,74.68);assert.equal(r.endFuel,20);assert.equal(r.total,697);assert.equal(r.endOdo,12676);assert.equal(r.normFuel,69.7);assert.equal(r.rows[0].fuel,69.68)});
+test('Excel seat July 2026 mileage correction preserves actual fuel',()=>{const r=travelCalc({liters:45.49,rate:10,startFuel:5,endTarget:5,odometer:10793.7,adjustmentKm:35,rows:[{km:0}]});assert.equal(r.refill,45.49);assert.equal(r.total,490);assert.equal(r.endOdo,11284);assert.equal(r.normFuel,49);assert.equal(r.actualRate,9.2837);assert.equal(r.fuelDifference,-3.51);assert.equal(r.rows[0].fuel,45.49)});
 import {fuelMetrics,fraction,validFuel} from './dist/fuel.mjs';
 import {travelTemplate} from './dist/travel-template.mjs';
 import {readFileSync} from 'node:fs';
@@ -124,7 +124,7 @@ import {monthBounds,filledTravel,previousMonthRecord} from './dist/fuel.mjs';
 test('Monthly flow derives spent fuel and mileage from filled fuel and arrival target',()=>{
  assert.deepEqual(monthBounds('2024-02'),{from:'2024-02-01',to:'2024-02-29'});assert.equal(monthBounds('2026-13'),null);
  const t=filledTravel({liters:0,refill:76.99,startFuel:20,endTarget:40,rate:10,odometer:12676,adjustmentKm:0,rows:[{km:0}]});
- assert.equal(t.liters,56.99);assert.equal(fuelMetrics(t).total,569.9);assert.equal(fuelMetrics(t).endOdo,13245.9);assert.equal(fuelMetrics(t).refill,76.99);
+ assert.equal(t.liters,56.99);assert.equal(fuelMetrics(t).total,570);assert.equal(fuelMetrics(t).endOdo,13246);assert.ok(Number.isInteger(fuelMetrics({...t,odometer:12675.6}).endOdo));assert.equal(fuelMetrics(t).refill,76.99);
  const history=[{car:'SEAT',plate:'',from:'2026-09-01',to:'2026-09-30'},{car:'VW',plate:'',from:'2026-10-01',to:'2026-10-31'}];
  assert.equal(previousMonthRecord(history,{car:'SEAT',plate:'',from:'2026-10-01'}).from,'2026-09-01');
  assert.equal(previousMonthRecord(history,{car:'SEAT',plate:'',from:'2026-11-01'}),null);
