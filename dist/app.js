@@ -201,6 +201,9 @@ async function loadFuel(){try{fuelRows=(await api('/api/fuel')).records;fuelLoad
 async function saveFuel(){prepareMonthly();if(monthLocked())throw Error('Цей місяць закрито: уже є наступний збережений місяць.');if(!validFuel(state.travel))throw Error('Перевірте місяць, автомобіль, залиті літри, залишки та пробіг. Витрата має бути більшою за нуль.');await api('/api/fuel',state.travel);await loadFuel();}
 async function previousFuel(){if(!await loadFuel())return;prepareMonthly();const t=state.travel,row=prevRecord(t);if(!row){render();return toast('Немає запису за попередній місяць. Початкові дані залишено для ручного введення.');}const r=travelCalc(row);Object.assign(t,{odometer:r.endOdo,startFuel:r.endFuel,endTarget:r.endFuel,rate:row.rate,autoBasisMonth:t.from.slice(0,7),basis:'попередній місяць '+row.from.slice(0,7)});Object.assign(t,filledTravel(t));save();render();}
 
+// Дані з «Авто і норма» (водій, номер, реквізити бланка) — постійні налаштування, а не частина місяця. Відкриття збереженого місяця не повинне їх затирати.
+const CAR_SETTINGS=['driver','representativeId','plate','number','workMode','fuelBrand','fuelCode','departTime','returnTime','hours','column','brigade','notes','garage','license'];
+function keepCarSettings(next,prev){for(const k of CAR_SETTINGS){if(k==='plate'&&!sameCar(next.car,prev.car))continue;if(prev[k]!==undefined&&prev[k]!=='')next[k]=prev[k]}return next}
 function stashDraft(){const t=state.travel;if(!fuelRows.some(x=>sameCar(x.car,t.car)&&x.from===t.from))state.travelDraft=structuredClone(t)}
 let swapping=0;
 const SKIP_LEAF='.hero-fade';
@@ -220,8 +223,8 @@ async function monthSwap(){const old=$('#content'),y=scrollY,still=matchMedia('(
  const h=fresh.querySelector('.fuel-hero');if(h&&bg&&bg!=='none'&&getComputedStyle(h).backgroundImage!==bg){const o=document.createElement('div');o.className='hero-fade';o.style.backgroundImage=bg;h.prepend(o);requestAnimationFrame(()=>requestAnimationFrame(()=>o.classList.add('go')));setTimeout(()=>o.remove(),800)}
  setTimeout(()=>fresh.querySelectorAll('.fade-in').forEach(e=>e.classList.remove('fade-in')),500)}
 async function goMonth(dir){await loadFuel();const t=state.travel,target=shiftMonth(t.from,dir),mine=fuelRows.filter(x=>sameCar(x.car,t.car)).sort((a,b)=>b.from.localeCompare(a.from)),rec=mine.find(x=>x.from.slice(0,7)===target);
- if(rec){stashDraft();state.travel={...defaults().travel,...structuredClone(rec)};state.travel.refill=travelCalc(rec).refill;state.travel.fuelMode='filled'}
- else if(state.travelDraft&&state.travelDraft.from.slice(0,7)===target&&sameCar(state.travelDraft.car,t.car)){state.travel=structuredClone(state.travelDraft)}
+ if(rec){stashDraft();state.travel=keepCarSettings({...defaults().travel,...structuredClone(rec)},t);state.travel.refill=travelCalc(rec).refill;state.travel.fuelMode='filled'}
+ else if(state.travelDraft&&state.travelDraft.from.slice(0,7)===target&&sameCar(state.travelDraft.car,t.car)){state.travel=keepCarSettings(structuredClone(state.travelDraft),t)}
  else if(!mine.length||target===shiftMonth(mine[0].from,1)){stashDraft();await newMonth(false);return}
  else return toast(`За ${monthName(target+'-01').replace(/ р\.$/,'')} записів немає.`);
  save();monthSwap()}
@@ -338,7 +341,7 @@ document.addEventListener('click',async ev=>{const el=ev.target.closest('button'
   case 'contacts-clinics':case 'contacts-representatives':contactKind=a.slice(9);if(!state[contactKind].length)contactForm[contactKind]=true;go('contacts');break;
   case 'add-contact':contactForm[contactKind]=true;render();document.querySelector(`[data-directory="${contactKind}"]`)?.focus();break;
   case 'manage-contacts':contactKind='clinics';go('contacts');break;
-  case 'fuel-open':{const row=fuelRows[Number(ds.index)];if(row){state.travel={...defaults().travel,...structuredClone(row)};state.travel.refill=travelCalc(row).refill;state.travel.fuelMode='filled';save();docType='travel';go('travel');fuelLoaded=true}break}
+  case 'fuel-open':{const row=fuelRows[Number(ds.index)];if(row){state.travel=keepCarSettings({...defaults().travel,...structuredClone(row)},state.travel);state.travel.refill=travelCalc(row).refill;state.travel.fuelMode='filled';save();docType='travel';go('travel');fuelLoaded=true}break}
   case 'save-month':try{await saveFuel();save();toast('Місяць збережено.');back()}catch(e){toast(e.message)}break;
   case 'fuel-analytics':go('fuel');break;
   case 'fuel-import':try{await api('/api/fuel/import',{});await loadFuel();render();toast('Історію Excel імпортовано.');}catch(e){toast(e.message)}break;
