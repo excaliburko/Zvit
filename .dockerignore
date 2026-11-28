@@ -2,5 +2,10 @@
 !Dockerfile
 !package.json
 !server.mjs
+!auth.mjs
 !dist/
 !dist/**
+
+!fuel-seed.json
+!fuel-seed-uliana.json
+!state-seed-uliana.json

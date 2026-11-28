@@ -1,34 +1,113 @@
+import {validFuel,monthBounds} from './dist/fuel.mjs';
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const root = fileURLToPath(new URL('./dist/', import.meta.url));
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
-export function createServer() {
-  return http.createServer(async (req, res) => {
-    const send = (status, body, type = 'text/plain; charset=utf-8') => {
-      res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
-      res.end(req.method === 'HEAD' ? undefined : body);
-    };
-    if (!['GET', 'HEAD'].includes(req.method)) {
-      res.setHeader('Allow', 'GET, HEAD');
-      return send(405, 'Method not allowed');
+import {fileURLToPath} from 'node:url';
+import {createAuthStore,verifyPassword} from './auth.mjs';
+const root=fileURLToPath(new URL('./dist/',import.meta.url));
+const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json'};
+const publicPaths=new Set(['/login','/login.html','/login.css','/login.js','/icon.svg','/icon-192.png','/icon-512.png','/icon-maskable-192.png','/icon-maskable-512.png','/apple-touch-icon.png','/manifest.webmanifest','/sw.js']);
+// Per-user starting history: inserted once, only while the user has no fuel months yet.
+const USER_SEEDS={'uliana.kuzminsky@gmail.com':'fuel-seed-uliana.json'};
+async function insertSeed(auth,userId,file){const rows=JSON.parse(await fs.readFile(new URL('./'+file,import.meta.url),'utf8'));const insert=auth.db.prepare('INSERT OR IGNORE INTO fuel_records VALUES(?,?,?,?,?)');let added=0;auth.db.exec('BEGIN');try{for(const row of rows)added+=insert.run(userId,row.car+'|',row.from,row.to,JSON.stringify(row)).changes;auth.db.exec('COMMIT');}catch(error){auth.db.exec('ROLLBACK');throw error;}return added;}
+export async function seedUserFuel(auth,username){const file=USER_SEEDS[String(username||'').toLowerCase()];if(!file)return false;const u=auth.find(username);if(!u||auth.db.prepare('SELECT 1 FROM fuel_records WHERE user_id=? LIMIT 1').get(u.id))return false;const added=await insertSeed(auth,u.id,file);console.log(`Seeded ${added} fuel months for ${u.username}`);return true;}
+const DEFAULT_SEED=Object.values(USER_SEEDS)[0];
+// Профіль, довідники й налаштування користувача з його резервної копії. Застосовується один раз: додає відсутнє, наявне на сервері не затирає.
+const STATE_SEEDS={'uliana.kuzminsky@gmail.com':'state-seed-uliana.json'};
+export async function seedUserState(auth,username){const file=STATE_SEEDS[String(username||'').toLowerCase()];if(!file)return false;const u=auth.find(username);if(!u)return false;auth.db.exec('CREATE TABLE IF NOT EXISTS seeds_applied(user_id TEXT NOT NULL,name TEXT NOT NULL,PRIMARY KEY(user_id,name))');if(auth.db.prepare('SELECT 1 FROM seeds_applied WHERE user_id=? AND name=?').get(u.id,file))return false;const seed=JSON.parse(await fs.readFile(new URL('./'+file,import.meta.url),'utf8'));const row=auth.db.prepare('SELECT payload FROM user_state WHERE user_id=?').get(u.id);let st=row?JSON.parse(row.payload):null;if(!st)st=seed;else{st.profile={...seed.profile,...Object.fromEntries(Object.entries(st.profile||{}).filter(([,v])=>v!==''&&v!=null))};for(const k of ['clinics','representatives']){const have=new Set((st[k]||[]).map(x=>x?.id));st[k]=[...(st[k]||[]),...(seed[k]||[]).filter(x=>!have.has(x.id))]}st.products=[...new Set([...(st.products||[]),...(seed.products||[])])];if(!st.preset||!st.preset.person&&!st.preset.representativeId)st.preset=seed.preset;for(const k of ['car','plate','driver','rate','garage','license','fuelBrand','fuelCode','workMode'])if(seed.travel?.[k]!=null&&(st.travel?.[k]==null||st.travel[k]===''))st.travel[k]=seed.travel[k];const ha=new Set((st.archive||[]).map(x=>x?.id));st.archive=[...(st.archive||[]),...(seed.archive||[]).filter(x=>!ha.has(x.id))]}auth.db.prepare('INSERT INTO user_state(user_id,payload,updated) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload,updated=excluded.updated').run(u.id,JSON.stringify(st),Date.now());auth.db.prepare('INSERT OR IGNORE INTO seeds_applied VALUES(?,?)').run(u.id,file);console.log(`Seeded app data for ${username}`);return true}
+export function createServer({auth}={}){
+ const attempts=new Map();let verifications=0;
+ return http.createServer(async(req,res)=>{
+  const send=(status,body,type='text/plain; charset=utf-8')=>{res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'same-origin'});res.end(req.method==='HEAD'?undefined:body);};
+  const json=(status,value)=>send(status,JSON.stringify(value),'application/json; charset=utf-8');
+  const redirect=()=>{res.setHeader('Location','/login');send(303,'');};
+  let pathname;
+  try{pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);}catch{return send(400,'Bad request');}
+  if(pathname==='/health')return ['GET','HEAD'].includes(req.method)?send(200,'ok'):send(405,'Method not allowed');
+  const cookie=String(req.headers.cookie||'').match(/(?:^|;\s*)zvit_session=([a-f0-9]{64})(?:;|$)/)?.[1]||'';
+  const user=auth?.session(cookie);
+  const secure=process.env.NODE_ENV==='production'||req.headers['x-forwarded-proto']==='https';
+  const setCookie=token=>res.setHeader('Set-Cookie',`zvit_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${token?43200:0}${secure?'; Secure':''}`);
+  try{
+   if(pathname.startsWith('/api/')){
+    if(!auth)return json(503,{error:'Вхід ще не налаштовано. Зверніться до адміністратора.'});
+    if(pathname==='/api/session'&&req.method==='GET')return user?json(200,{user}):json(401,{error:'Увійдіть до застосунку.'});
+    if(pathname==='/api/fuel'&&req.method==='GET'&&user)await seedUserFuel(auth,user.username);
+    if(pathname==='/api/fuel'&&req.method==='GET')return user?json(200,{records:auth.db.prepare('SELECT payload FROM fuel_records WHERE user_id=? ORDER BY period_start').all(user.id).map(row=>JSON.parse(row.payload))}):json(401,{error:'Увійдіть до застосунку.'});
+    if(pathname==='/api/state'&&req.method==='GET'){if(!user)return json(401,{error:'Увійдіть до застосунку.'});await seedUserState(auth,user.username);const row=auth.db.prepare('SELECT payload,updated FROM user_state WHERE user_id=?').get(user.id);return json(200,{state:row?JSON.parse(row.payload):null,updated:row?.updated||0})}
+    if(pathname==='/api/users'&&req.method==='GET')return !user?json(401,{error:'Увійдіть до застосунку.'}):user.role==='admin'?json(200,{users:auth.list()}):json(403,{error:'Потрібен доступ адміністратора.'});
+    if(!['POST','PATCH'].includes(req.method))return json(405,{error:'Метод не підтримується.'});
+    const origin=req.headers.origin;
+    if(req.headers['sec-fetch-site']==='cross-site'||(origin&&new URL(origin).host!==req.headers.host))return json(403,{error:'Запит з іншого сайту заборонено.'});
+    if(!String(req.headers['content-type']).startsWith('application/json'))return json(415,{error:'Потрібен JSON.'});
+    const maxBody=pathname==='/api/state'?4*1024*1024:8192;let size=0,parts=[];for await(const part of req){size+=part.length;if(size>maxBody)return json(413,{error:'Запит завеликий.'});parts.push(part);}
+    let body;try{body=JSON.parse(Buffer.concat(parts).toString());if(!body||typeof body!=='object'||Array.isArray(body))throw Error();}catch{return json(400,{error:'Некоректний запит.'});}
+    const passwordOK=value=>typeof value==='string'&&value.length>=12&&value.length<=256;
+    if(pathname==='/api/login'&&req.method==='POST'){
+     const ip=String(process.env.NODE_ENV==='production'?req.headers['x-real-ip']||req.headers['x-forwarded-for']||req.socket.remoteAddress:req.socket.remoteAddress).split(',')[0].trim();
+     const now=Date.now();for(const [key,value]of attempts)if(value.until<now)attempts.delete(key);
+     if(!attempts.has(ip)){if(attempts.size>=10000)return json(429,{error:'Спробуйте пізніше.'});attempts.set(ip,{count:0,until:now+60000});}
+     const attempt=attempts.get(ip);
+     if(attempt.count>=10||verifications>=4){res.setHeader('Retry-After','60');return json(429,{error:'Забагато спроб. Зачекайте хвилину.'});}
+     attempt.count++;
+     const username=typeof body.username==='string'?body.username.trim():'';
+     if(!username||username.length>180||typeof body.password!=='string'||body.password.length>256)return json(401,{error:'Невірний логін або пароль.'});
+     const row=auth.find(username),dummy=auth.find(process.env.BOOTSTRAP_ADMIN_USERNAME||'admin');
+     verifications++;let valid;try{valid=await verifyPassword(body.password,row?.password_hash||dummy?.password_hash||'');}finally{verifications--;}
+     if(!valid||!row?.active)return json(401,{error:'Невірний логін або пароль.'});
+     if(cookie)auth.revoke(cookie);setCookie(auth.issue(row.id));attempts.delete(ip);return json(200,{ok:true});
     }
-    let pathname;
-    try { pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); }
-    catch { return send(400, 'Bad request'); }
-    if (pathname === '/health') return send(200, 'ok');
-    const file = path.resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
-    const relative = path.relative(root, file);
-    if (relative.startsWith('..') || path.isAbsolute(relative)) return send(403, 'Forbidden');
-    try { send(200, await fs.readFile(file), types[path.extname(file)] || 'application/octet-stream'); }
-    catch { send(404, 'Not found'); }
-  });
+    if(pathname==='/api/logout'&&req.method==='POST'){auth.revoke(cookie);setCookie('');return json(200,{ok:true});}
+    if(!user)return json(401,{error:'Увійдіть до застосунку.'});
+    if(pathname==='/api/state'&&req.method==='POST'){const st=body.state;if(!st||typeof st!=='object'||Array.isArray(st)||st.version!==1||!st.event||!st.travel||!Array.isArray(st.archive))return json(400,{error:'Некоректні дані.'});const updated=Date.now();auth.db.prepare('INSERT INTO user_state(user_id,payload,updated) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload,updated=excluded.updated').run(user.id,JSON.stringify(st),updated);return json(200,{updated})}
+    if(pathname==='/api/fuel'&&req.method==='POST'){if(!validFuel(body)||!monthBounds(body.from.slice(0,7))||monthBounds(body.from.slice(0,7)).from!==body.from||monthBounds(body.from.slice(0,7)).to!==body.to)return json(400,{error:'Перевірте дані пального та період.'});const vehicle=body.car.trim().toUpperCase()+'|'+body.plate.trim().toUpperCase();if(auth.db.prepare("SELECT 1 FROM fuel_records WHERE user_id=? AND substr(vehicle,1,instr(vehicle,'|')-1)=? AND period_start>? LIMIT 1").get(user.id,body.car.trim().toUpperCase(),body.from))return json(409,{error:'Цей місяць закрито: уже є наступний збережений місяць.'});auth.db.prepare('INSERT INTO fuel_records VALUES(?,?,?,?,?) ON CONFLICT(user_id,vehicle,period_start,period_end) DO UPDATE SET payload=excluded.payload').run(user.id,vehicle,body.from,body.to,JSON.stringify(body));return json(200,{ok:true});}
+    if(pathname==='/api/fuel/import'&&req.method==='POST'){if(user.role!=='admin')return json(403,{error:'Імпорт Excel доступний адміністратору.'});const rows=JSON.parse(await fs.readFile(new URL('./fuel-seed.json',import.meta.url),'utf8'));const insert=auth.db.prepare('INSERT OR IGNORE INTO fuel_records VALUES(?,?,?,?,?)');auth.db.exec('BEGIN');try{for(const row of rows)insert.run(user.id,row.car+'|',row.from,row.to,JSON.stringify(row));auth.db.exec('COMMIT');}catch(error){auth.db.exec('ROLLBACK');throw error;}return json(200,{ok:true});}
+    if(pathname==='/api/password'&&req.method==='POST'){
+     if(!passwordOK(body.password))return json(400,{error:'Новий пароль має містити від 12 до 256 символів.'});
+     const current=auth.find(user.username);
+     if(typeof body.currentPassword!=='string'||body.currentPassword.length>256||!await verifyPassword(body.currentPassword,current.password_hash))return json(400,{error:'Поточний пароль невірний.'});
+     await auth.password(user.id,body.password);setCookie('');return json(200,{ok:true});
+    }
+    if(pathname==='/api/users'&&req.method==='POST'){
+     if(user.role!=='admin')return json(403,{error:'Потрібен доступ адміністратора.'});
+     if(typeof body.username!=='string'||!/^[-a-zA-Z0-9_.@]{3,80}$/.test(body.username)||typeof body.name!=='string'||!body.name.trim()||body.name.length>180||!passwordOK(body.password))return json(400,{error:'Перевірте ПІБ, логін (3–80 латинських символів) і пароль (від 12 символів).'});
+     if(auth.find(body.username))return json(409,{error:'Такий логін уже існує.'});
+     const created=await auth.add({...body,name:body.name.trim()});await seedUserFuel(auth,created.username);await seedUserState(auth,created.username);return json(201,{user:created});
+    }
+    const account=pathname.match(/^\/api\/users\/([a-f0-9-]{36})$/);
+    if(account&&req.method==='PATCH'){
+     if(user.role!=='admin')return json(403,{error:'Потрібен доступ адміністратора.'});
+     const target=auth.list().find(row=>row.id===account[1]);if(!target)return json(404,{error:'Користувача не знайдено.'});
+     if(target.id===user.id)return json(400,{error:'Власний пароль змінюйте в налаштуваннях. Власний доступ заблокувати не можна.'});
+     if(body.password!==undefined){if(!passwordOK(body.password))return json(400,{error:'Пароль має містити від 12 до 256 символів.'});await auth.password(target.id,body.password);}
+     if(typeof body.active==='boolean')auth.active(target.id,body.active);
+     if(body.seedFuel===true){const added=await insertSeed(auth,target.id,USER_SEEDS[target.username.toLowerCase()]||DEFAULT_SEED);console.log(`Admin seeded ${added} fuel months for ${target.username}`);return json(200,{ok:true,added});}
+     return json(200,{ok:true});
+    }
+    return json(404,{error:'Не знайдено.'});
+   }
+   if(pathname==='/account-list'&&req.method==='GET'){
+    if(!user)return json(401,{error:'Увійдіть до застосунку.'});
+    return user.role==='admin'?json(200,{users:auth.list()}):json(403,{error:'Потрібен доступ адміністратора.'});
+   }
+   if(!['GET','HEAD'].includes(req.method)){res.setHeader('Allow','GET, HEAD');return send(405,'Method not allowed');}
+   if(!publicPaths.has(pathname)&&!user){if(pathname==='/'||pathname==='/index.html')return redirect();return send(401,'Authentication required');}
+   const mapped=pathname==='/login'?'/login.html':pathname==='/'?'/index.html':pathname;
+   const file=path.resolve(root,'.'+mapped),relative=path.relative(root,file);
+   if(relative.startsWith('..')||path.isAbsolute(relative))return send(403,'Forbidden');
+   try{send(200,await fs.readFile(file),types[path.extname(file)]||'application/octet-stream');}catch{send(404,'Not found');}
+  }catch(error){console.error('Request failed:',error.code||error.name);if(!res.headersSent)json(500,{error:'Помилка сервера. Спробуйте ще раз.'});else res.end();}
+ });
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const server = createServer();
-  const port = Number(process.env.PORT || 4173);
-  server.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
-  for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => server.close(() => process.exit(0)));
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+ try{process.loadEnvFile();}catch(error){if(error.code!=='ENOENT')throw error;}
+ const dataDir=path.resolve(process.env.DATA_DIR||'data');
+ // Railway mounts volumes as root. Drop privileges before opening the database.
+ if(process.getuid?.()===0){await fs.mkdir(dataDir,{recursive:true});await fs.chown(dataDir,1000,1000);process.setgid(1000);process.setuid(1000);}
+ const auth=createAuthStore(path.join(dataDir,'auth.sqlite'),{username:process.env.BOOTSTRAP_ADMIN_USERNAME,passwordHash:process.env.BOOTSTRAP_ADMIN_HASH});
+ for(const username of Object.keys(USER_SEEDS))await seedUserFuel(auth,username);
+ for(const username of Object.keys(STATE_SEEDS))await seedUserState(auth,username);
+ const server=createServer({auth}),port=Number(process.env.PORT||4173);
+ server.listen(port,'0.0.0.0',()=>console.log(`Listening on port ${port}`));
+ for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>server.close(()=>{auth.close();process.exit(0);}));
 }
